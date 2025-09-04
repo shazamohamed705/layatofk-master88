@@ -1,0 +1,141 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* RTL Support for Arabic */
+/* html[dir="rtl"] {
+  direction: rtl;
+} */
+
+
+/* Light Font Face */
+@font-face {
+  font-family: "Lama Sans";
+  src: url("../public/Fonts/LamaSans-Light.woff2") format("woff2"),
+    url("../public/Fonts/LamaSans-Light.woff") format("woff");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Lama Sans";
+  src: url("../public/Fonts/LamaSans-Regular.woff2") format("woff2"),
+    url("../public/Fonts/LamaSans-Regular.woff") format("woff");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Medium Font Face */
+@font-face {
+  font-family: "Lama Sans";
+  src: url("../public/Fonts/LamaSans-Medium.woff2") format("woff2"),
+    url("../public/Fonts/LamaSans-Medium.woff") format("woff");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Bold Font Face */
+@font-face {
+  font-family: "Lama Sans";
+  src: url("../public/Fonts/LamaSans-Bold.woff2") format("woff2"),
+    url("../public/Fonts/LamaSans-Bold.woff") format("woff");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Black Font Face */
+@font-face {
+  font-family: "Lama Sans";
+  src: url("../public/Fonts/LamaSans-Black.woff2") format("woff2"),
+    url("../public/Fonts/LamaSans-Black.woff") format("woff");
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+body {
+  font-family: "Lama Sans", sans-serif !important;
+}
+
+/* Blog Prose Styles */
+.prose {
+  color: #374151;
+  max-width: none;
+}
+
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4,
+.prose h5,
+.prose h6 {
+  color: #0F005B;
+  font-weight: 700;
+  line-height: 1.25;
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
+.prose h1 {
+  font-size: 2.25rem;
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+}
+
+.prose h2 {
+  font-size: 1.875rem;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+}
+
+.prose h3 {
+  font-size: 1.5rem;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.prose p {
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  line-height: 1.75;
+}
+
+.prose ul {
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  padding-left: 1.5rem;
+}
+
+.prose li {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.prose strong {
+  color: #0F005B;
+  font-weight: 700;
+}
+
+.prose a {
+  color: #0F005B;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+
+.prose a:hover {
+  color: #000000;
+}
+
+/* Navigation Link Styles */
+.nav-link {
+  @apply text-gray-700 hover:text-primary transition-colors duration-300 font-medium;
+}
+
+.nav-link.active {
+  @apply text-primary font-bold;
+}
