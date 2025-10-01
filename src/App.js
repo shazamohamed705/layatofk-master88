@@ -1,6 +1,7 @@
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import React, { Suspense, lazy } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AppSettingsProvider } from "./contexts/AppSettingsContext";
 import "./index.css";
 
 // Create QueryClient instance
@@ -39,6 +40,7 @@ const router = createBrowserRouter([
       { path: "blog", element: <Blog /> },
       { path: "blog/:id", element: <BlogDetails /> },
       { path: "products", element: <Products /> },
+      { path: "products/:subCatId", element: <Products /> },
       { path: "categories", element: <Categories /> },
       // { path: "*", element: <NotFound /> }, // Uncomment if using NotFound
     ],
@@ -48,15 +50,17 @@ const router = createBrowserRouter([
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Suspense
-        fallback={
-          <div className="flex justify-center items-center h-[100vh]">
-            <span className="loader my-8"></span>
-          </div>
-        }
-      >
-        <RouterProvider router={router} />
-      </Suspense>
+      <AppSettingsProvider>
+        <Suspense
+          fallback={
+            <div className="flex justify-center items-center h-[100vh]">
+              <span className="loader my-8"></span>
+            </div>
+          }
+        >
+          <RouterProvider router={router} />
+        </Suspense>
+      </AppSettingsProvider>
     </QueryClientProvider>
   );
 }

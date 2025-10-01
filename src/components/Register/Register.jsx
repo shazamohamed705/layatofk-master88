@@ -3,6 +3,7 @@ import { BsEye } from 'react-icons/bs'
 import { FiEyeOff } from 'react-icons/fi'
 import { Link } from 'react-router-dom'
 import loginImage from '../../assets/login photo.png'
+import { postForm } from '../../api'
 function Register() {
     const [showPassword, setShowPassword] = useState(false)
     const [showConfirmPassword, setShowConfirmPassword] = useState(false)
@@ -15,11 +16,81 @@ function Register() {
         confirmPassword: "",
         agreeToTerms: false,
     })
+    // Add UI state: loading and error
+    const [isSubmitting, setIsSubmitting] = useState(false)
+    const [errorMessage, setErrorMessage] = useState("")
+    const [successMessage, setSuccessMessage] = useState("")
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault()
-        // Handle registration logic here
-        console.log("Registration attempt:", formData)
+        setErrorMessage("")
+        setSuccessMessage("")
+
+        // Basic validation: password match
+        if (formData.password !== formData.confirmPassword) {
+            setErrorMessage('Passwords do not match')
+            return
+        }
+        if (!formData.agreeToTerms) {
+            setErrorMessage('You must agree to terms')
+            return
+        }
+
+        // Prepare payload matching backend expectations
+        const normalizedPhone = formData.phoneNumber.trim()
+        
+        const formParams = new URLSearchParams()
+        formParams.append('name', `${formData.firstName} ${formData.lastName}`.trim())
+        formParams.append('email', formData.email.trim())
+        formParams.append('password', formData.password)
+        formParams.append('phone', normalizedPhone)
+
+        try {
+            setIsSubmitting(true)
+            // Use fetch with minimal overhead for performance
+            const apiBase = process.env.NODE_ENV === 'development' ? '' : 'https://lay6ofk.com'
+            const data = await postForm('/api/signup', formParams)
+            if (process.env.NODE_ENV === 'development') {
+                console.log('Register response data:', data)
+            }
+            // Expecting structure with status, msg, user, api_token
+            if (data && data.status) {
+                const token = data.user?.api_token || data.api_token
+                if (token) {
+                    // Store token securely (localStorage here; consider httpOnly cookie server-side)
+                    localStorage.setItem('api_token', token)
+                }
+                if (data.user) {
+                    try { localStorage.setItem('user', JSON.stringify(data.user)) } catch (_) {}
+                }
+                
+                // Dispatch custom event to notify other components of successful registration
+                window.dispatchEvent(new CustomEvent('userLoggedIn', { 
+                    detail: { user: data.user, token } 
+                }))
+                
+                setSuccessMessage('تم إنشاء الحساب بنجاح')
+                // Optional: redirect after short delay
+                setTimeout(() => {
+                    // If using react-router-dom v6 navigate would be better; fallback to location
+                    window.location.href = '/'
+                }, 800)
+            } else {
+                let details = ''
+                if (data?.errors && typeof data.errors === 'object') {
+                    details = Object.values(data.errors).flat().join(' | ')
+                }
+                throw new Error(data?.msg || data?.message || details || 'Signup failed')
+            }
+        } catch (err) {
+            // Log full error for debugging
+            console.error('Register error details:', err)
+            // Normalize error message
+            const message = (err && err.message ? err.message : 'Network error').slice(0, 300)
+            setErrorMessage(message)
+        } finally {
+            setIsSubmitting(false)
+        }
     }
 
     const handleInputChange = (e) => {
@@ -50,6 +121,13 @@ function Register() {
 
                     {/* Form */}
                     <form onSubmit={handleSubmit} className="space-y-4">
+                        {/* Inline feedback */}
+                        {errorMessage && (
+                            <div className="text-red-600 text-sm text-right">{errorMessage}</div>
+                        )}
+                        {successMessage && (
+                            <div className="text-green-600 text-sm text-right">{successMessage}</div>
+                        )}
                         {/* Name Fields */}
                         <div className="grid grid-cols-2 gap-4">
                             <input
@@ -112,6 +190,7 @@ function Register() {
                                 type="button"
                                 onClick={() => setShowPassword(!showPassword)}
                                 className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                                disabled={isSubmitting}
                             >
                                 {showPassword ? <FiEyeOff size={20} /> : <BsEye size={20} />}
                             </button>
@@ -132,6 +211,7 @@ function Register() {
                                 type="button"
                                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                                 className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                                disabled={isSubmitting}
                             >
                                 {showConfirmPassword ? <FiEyeOff size={20} /> : <BsEye size={20} />}
                             </button>
@@ -146,10 +226,11 @@ function Register() {
                                 onChange={handleInputChange}
                                 className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                                 required
+                                disabled={isSubmitting}
                             />
                             <label className="text-sm text-gray-600 leading-relaxed">
                                 أوافق على{" "}
-                                <Link to="/terms" className="text-blue-600 hover:text-blue-800">
+                                <Link to="/privacy" className="text-blue-600 hover:text-blue-800">
                                     الشروط والأحكام
                                 </Link>{" "}
                                 و{" "}
@@ -162,10 +243,10 @@ function Register() {
                         {/* Register Button */}
                         <button
                             type="submit"
-                            disabled={!formData.agreeToTerms}
+                            disabled={!formData.agreeToTerms || isSubmitting}
                             className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-medium py-3 px-4 rounded-lg transition-colors"
                         >
-                            إنشاء حساب
+                            {isSubmitting ? 'جارٍ الإنشاء...' : 'إنشاء حساب'}
                         </button>
                     </form>
 

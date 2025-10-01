@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Hide scrollbar for navigation */
+.nav-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.nav-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* RTL Support for Arabic */
 /* html[dir="rtl"] {
   direction: rtl;
@@ -138,4 +148,40 @@ body {
 
 .nav-link.active {
   @apply text-primary font-bold;
+}
+
+/* Fix for react-slick accessibility issues */
+.slick-cloned {
+  pointer-events: none !important;
+}
+
+.slick-cloned a,
+.slick-cloned button,
+.slick-cloned [tabindex] {
+  pointer-events: none !important;
+  user-select: none !important;
+}
+
+/* Ensure cloned slides are properly hidden from screen readers */
+.slick-slide[aria-hidden="true"] a,
+.slick-slide[aria-hidden="true"] button,
+.slick-slide[aria-hidden="true"] [tabindex] {
+  pointer-events: none !important;
+  user-select: none !important;
+}
+
+/* Animation for fade-in effect */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.6s ease-out;
 }

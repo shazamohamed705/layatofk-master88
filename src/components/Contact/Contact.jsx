@@ -1,6 +1,7 @@
-import React, { useState } from 'react'
-import {  BiEnvelope, BiMap, BiTime } from 'react-icons/bi'
-import { FaWhatsapp, FaFacebook, FaTwitter, FaInstagram } from 'react-icons/fa'
+import React, { useState, useCallback, useMemo } from 'react'
+import {  BiEnvelope, BiMap, BiTime, BiPhone } from 'react-icons/bi'
+import { FaWhatsapp, FaFacebook, FaTwitter, FaInstagram, FaYoutube } from 'react-icons/fa'
+import { useAppSettings } from '../../contexts/AppSettingsContext'
 
 function Contact() {
   const [formData, setFormData] = useState({
@@ -10,15 +11,21 @@ function Contact() {
     subject: '',
     message: ''
   })
+  
+  // Use app settings from context (shared across the app)
+  const { appSettings, loading, error } = useAppSettings()
 
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    })
-  }
+  // Optimized change handler using useCallback
+  const handleChange = useCallback((e) => {
+    const { name, value } = e.target
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }))
+  }, [])
 
-  const handleSubmit = (e) => {
+  // Optimized submit handler using useCallback
+  const handleSubmit = useCallback((e) => {
     e.preventDefault()
     // Handle form submission here
     console.log('Form submitted:', formData)
@@ -26,38 +33,131 @@ function Contact() {
     setFormData({
       name: '',
       email: '',
+      phone: '',
+      subject: '',
       message: ''
     })
+  }, [formData])
+
+  // Memoized contact info based on API data
+  const contactInfo = useMemo(() => {
+    const defaultInfo = [
+      {
+        icon: <BiPhone className="text-2xl" />,
+        title: "اتصل بنا",
+        details: ["22209724"],
+        color: "bg-blue-500"
+      },
+      {
+        icon: <BiEnvelope className="text-2xl" />,
+        title: "راسلنا عبر البريد الإلكتروني",
+        details: ["e2.a@hotmail.com"],
+        color: "bg-green-500"
+      },
+      {
+        icon: <BiMap className="text-2xl" />,
+        title: "موقعنا",
+        details: ["دولة الكويت"],
+        color: "bg-purple-500"
+      },
+      {
+        icon: <BiTime className="text-2xl" />,
+        title: "ساعات العمل",
+        details: ["الأحد - الخميس: 8:00 ص - 6:00 م", "الجمعة - السبت: 9:00 ص - 4:00 م"],
+        color: "bg-orange-500"
+      }
+    ]
+
+    if (!appSettings?.callus) return defaultInfo
+
+    const { phone, email } = appSettings.callus
+    
+    return [
+      phone && {
+        icon: <BiPhone className="text-2xl" />,
+        title: "اتصل بنا",
+        details: [phone],
+        color: "bg-blue-500"
+      },
+      email && {
+        icon: <BiEnvelope className="text-2xl" />,
+        title: "راسلنا عبر البريد الإلكتروني",
+        details: [email],
+        color: "bg-green-500"
+      },
+      {
+        icon: <BiMap className="text-2xl" />,
+        title: "موقعنا",
+        details: ["دولة الكويت"],
+        color: "bg-purple-500"
+      },
+      {
+        icon: <BiTime className="text-2xl" />,
+        title: "ساعات العمل",
+        details: ["الأحد - الخميس: 8:00 ص - 6:00 م", "الجمعة - السبت: 9:00 ص - 4:00 م"],
+        color: "bg-orange-500"
+      }
+    ].filter(Boolean)
+  }, [appSettings])
+
+  // Memoized social links based on API data
+  const socialLinks = useMemo(() => {
+    const defaultLinks = [
+      { icon: <FaWhatsapp />, href: "#", color: "bg-green-500 hover:bg-green-600", label: "واتساب" },
+      { icon: <FaFacebook />, href: "#", color: "bg-blue-600 hover:bg-blue-700", label: "فيسبوك" },
+      { icon: <FaTwitter />, href: "#", color: "bg-blue-400 hover:bg-blue-500", label: "تويتر" },
+      { icon: <FaInstagram />, href: "#", color: "bg-pink-500 hover:bg-pink-600", label: "انستغرام" }
+    ]
+
+    if (!appSettings?.callus) return defaultLinks
+
+    const { whatsapp, faceBook, twitter, instgram, youtube } = appSettings.callus
+
+    return [
+      whatsapp && {
+        icon: <FaWhatsapp />,
+        href: `https://wa.me/${whatsapp}`,
+        color: "bg-green-500 hover:bg-green-600",
+        label: "واتساب"
+      },
+      faceBook && {
+        icon: <FaFacebook />,
+        href: faceBook,
+        color: "bg-blue-600 hover:bg-blue-700",
+        label: "فيسبوك"
+      },
+      twitter && {
+        icon: <FaTwitter />,
+        href: twitter,
+        color: "bg-blue-400 hover:bg-blue-500",
+        label: "تويتر"
+      },
+      instgram && {
+        icon: <FaInstagram />,
+        href: instgram,
+        color: "bg-pink-500 hover:bg-pink-600",
+        label: "انستغرام"
+      },
+      youtube && {
+        icon: <FaYoutube />,
+        href: youtube,
+        color: "bg-red-500 hover:bg-red-600",
+        label: "يوتيوب"
+      }
+    ].filter(Boolean)
+  }, [appSettings])
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 pt-20 pb-10 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-primary mx-auto mb-4"></div>
+          <p className="text-gray-600 text-lg">جاري تحميل البيانات...</p>
+        </div>
+      </div>
+    )
   }
-
-  const contactInfo = [
-     
-    {
-      icon: <BiEnvelope className="text-2xl" />,
-      title: "راسلنا عبر البريد الإلكتروني",
-      details: ["info@laytofak.com", "support@laytofak.com"],
-      color: "bg-green-500"
-    },
-    {
-      icon: <BiMap className="text-2xl" />,
-      title: "موقعنا",
-      details: ["شارع الخليج العربي", "الكويت"],
-      color: "bg-purple-500"
-    },
-    {
-      icon: <BiTime className="text-2xl" />,
-      title: "ساعات العمل",
-      details: ["الأحد - الخميس: 8:00 ص - 6:00 م", "الجمعة - السبت: 9:00 ص - 4:00 م"],
-      color: "bg-orange-500"
-    }
-  ]
-
-  const socialLinks = [
-    { icon: <FaWhatsapp />, href: "#", color: "bg-green-500 hover:bg-green-600" },
-    { icon: <FaFacebook />, href: "#", color: "bg-blue-600 hover:bg-blue-700" },
-    { icon: <FaTwitter />, href: "#", color: "bg-blue-400 hover:bg-blue-500" },
-    { icon: <FaInstagram />, href: "#", color: "bg-pink-500 hover:bg-pink-600" }
-  ]
 
   return (
     <div className="min-h-screen bg-gray-50 pt-20 pb-10">
@@ -68,6 +168,11 @@ function Contact() {
           <p className="text-gray-600 text-lg max-w-2xl mx-auto">
             نحن هنا لمساعدتك! لا تتردد في التواصل معنا لأي استفسار أو مساعدة تحتاجها
           </p>
+          {error && (
+            <div className="mt-4 bg-yellow-100 border-r-4 border-yellow-500 text-yellow-700 p-4 rounded max-w-2xl mx-auto" role="alert">
+              <p className="text-sm">تم استخدام البيانات الافتراضية بسبب: {error}</p>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
@@ -170,14 +275,16 @@ function Contact() {
             {/* Social Media Links */}
             <div className="bg-white rounded-lg shadow-lg p-6">
               <h3 className="text-lg font-bold text-gray-800 mb-4">تابعنا على وسائل التواصل الاجتماعي</h3>
-              <div className="flex gap-4">
+              <div className="flex flex-wrap gap-4">
                 {socialLinks.map((social, index) => (
                   <a
                     key={index}
                     href={social.href}
-                    className={`${social.color} text-white p-3 rounded-lg transition-colors duration-300`}
+                    className={`${social.color} text-white p-3 rounded-lg transition-all duration-300 hover:scale-110 transform`}
                     target="_blank"
                     rel="noopener noreferrer"
+                    aria-label={social.label}
+                    title={social.label}
                   >
                     {social.icon}
                   </a>
