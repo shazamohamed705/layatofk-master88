@@ -21,6 +21,7 @@ import huawei from "../../assets/huawel.webp"
 import { getJson, postForm } from '../../api'
 
 function Home() {
+    const [user, setUser] = useState(null);
     const [hoveredCategory, setHoveredCategory] = useState(null);
     const [dropdownPos, setDropdownPos] = useState(null); // fixed-position dropdown anchor
     const [subMap, setSubMap] = useState({}); // cache: { [parentCatId]: SubCategory[] }
@@ -30,6 +31,24 @@ function Home() {
     const closeTimerRef = useRef(null)
     const navRef = useRef(null)
     const dropdownRef = useRef(null)
+
+    // Check if user is logged in
+    useEffect(() => {
+        const readUser = () => {
+            try {
+                const raw = localStorage.getItem('user');
+                setUser(raw ? JSON.parse(raw) : null);
+            } catch (_) {
+                setUser(null);
+            }
+        };
+        readUser();
+        const onStorage = (e) => {
+            if (e.key === 'user' || e.key === 'api_token') readUser();
+        };
+        window.addEventListener('storage', onStorage);
+        return () => window.removeEventListener('storage', onStorage);
+    }, []);
 
     // Fetch sub-categories for a parent category id with caching (Level 3)
     const fetchSubCategoriesFor = async (parentId) => {
@@ -1011,7 +1030,22 @@ function Home() {
             </nav>
 
             <div className="stories-wrapper">
-            <Stories />
+                {!user ? (
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-500 rounded-2xl p-8 text-center my-8 shadow-lg max-w-2xl mx-auto">
+                        <div className="text-blue-600 mb-4">
+                            <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                        </div>
+                        <h3 className="text-2xl font-bold text-gray-800 mb-3">سجل دخول لعرض الاستوريز</h3>
+                        <p className="text-gray-600 mb-6">يجب تسجيل الدخول لمشاهدة القصص والعروض المميزة</p>
+                        <Link to="/login" className="inline-block bg-blue-600 text-white px-8 py-3 rounded-lg hover:bg-blue-700 transition-all transform hover:scale-105 font-bold shadow-md">
+                            تسجيل الدخول
+                        </Link>
+                    </div>
+                ) : (
+                    <Stories />
+                )}
             </div>
 
             <section id="home" className="relative my-10">
@@ -1170,7 +1204,22 @@ function Home() {
 
                     {/* Business Cards Grid */}
                     <main className="mx-auto py-4">
-                        {adsLoading ? (
+                        {!user ? (
+                            <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-500 rounded-2xl p-12 text-center my-8 shadow-lg">
+                                <div className="max-w-md mx-auto">
+                                    <div className="text-green-600 mb-4">
+                                        <svg className="w-20 h-20 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                        </svg>
+                                    </div>
+                                    <h3 className="text-2xl font-bold text-gray-800 mb-3">سجل دخول لعرض الإعلانات التجارية</h3>
+                                    <p className="text-gray-600 mb-6">يجب تسجيل الدخول للوصول إلى الإعلانات التجارية والخدمات</p>
+                                    <Link to="/login" className="inline-block bg-green-600 text-white px-8 py-3 rounded-lg hover:bg-green-700 transition-all transform hover:scale-105 font-bold">
+                                        تسجيل الدخول
+                                    </Link>
+                                </div>
+                            </div>
+                        ) : adsLoading ? (
                             <div className="flex justify-center items-center py-12">
                                 <div className="text-center">
                                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
@@ -1365,7 +1414,22 @@ function Home() {
 
                     {/* Business Cards Grid */}
                     <main className="mx-auto py-4">
-                        {adsLoading ? (
+                        {!user ? (
+                            <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-orange-500 rounded-2xl p-12 text-center my-8 shadow-lg">
+                                <div className="max-w-md mx-auto">
+                                    <div className="text-orange-600 mb-4">
+                                        <svg className="w-20 h-20 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                        </svg>
+                                    </div>
+                                    <h3 className="text-2xl font-bold text-gray-800 mb-3">سجل دخول لعرض الإعلانات التجارية</h3>
+                                    <p className="text-gray-600 mb-6">يجب تسجيل الدخول للوصول إلى الإعلانات والخدمات التجارية</p>
+                                    <Link to="/login" className="inline-block bg-orange-600 text-white px-8 py-3 rounded-lg hover:bg-orange-700 transition-all transform hover:scale-105 font-bold">
+                                        تسجيل الدخول
+                                    </Link>
+                                </div>
+                            </div>
+                        ) : adsLoading ? (
                             <div className="flex justify-center items-center py-12">
                                 <div className="text-center">
                                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
@@ -1466,7 +1530,7 @@ function Home() {
                     {/* Header */}
                     <div className="flex justify-between items-center mb-6">
                         <div>
-                            <h2 className="text-2xl font-bold text-gray-800">درجات ناريه 
+                            <h2 className="text-2xl font-bold text-gray-800">دراجات نارية
                             </h2>
                             <p className="text-sm text-gray-500">تسوق احدث المنتجات المميزة المضافة جديد</p>
                         </div>
@@ -1476,7 +1540,22 @@ function Home() {
                         </Link>
                     </div>
                     {/* Cards */}
-                    {adsLoading ? (
+                    {!user ? (
+                        <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-500 rounded-2xl p-12 text-center my-8 shadow-lg">
+                            <div className="max-w-md mx-auto">
+                                <div className="text-purple-600 mb-4">
+                                    <svg className="w-20 h-20 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                    </svg>
+                                </div>
+                                <h3 className="text-2xl font-bold text-gray-800 mb-3">سجل دخول لعرض الدراجات النارية</h3>
+                                <p className="text-gray-600 mb-6">يجب تسجيل الدخول لمشاهدة المنتجات والعروض المتاحة</p>
+                                <Link to="/login" className="inline-block bg-purple-600 text-white px-8 py-3 rounded-lg hover:bg-purple-700 transition-all transform hover:scale-105 font-bold">
+                                    تسجيل الدخول
+                                </Link>
+                            </div>
+                        </div>
+                    ) : adsLoading ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                             {[1, 2, 3, 4].map((i) => (
                                 <div key={i} className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100 animate-pulse">

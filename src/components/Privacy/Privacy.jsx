@@ -61,7 +61,7 @@ function Privacy() {
             نحن نلتزم بحماية خصوصيتك وضمان أمان بياناتك الشخصية. يرجى قراءة الشروط والأحكام بعناية.
           </p>
         </div>
-
+         
         {/* Privacy Overview Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
           <div className="bg-white rounded-lg shadow-lg p-6 text-center hover:shadow-xl transition-shadow border-t-4 border-blue-500">
@@ -72,26 +72,26 @@ function Privacy() {
             <p className="text-gray-600 leading-relaxed">
               نحن نلتزم بحماية خصوصية بياناتك الشخصية وضمان أمانها بأعلى المعايير.
             </p>
-          </div>
+        </div>
           <div className="bg-white rounded-lg shadow-lg p-6 text-center hover:shadow-xl transition-shadow border-t-4 border-green-500">
             <div className="text-green-500 mb-4 flex justify-center">
               <BiLock className="text-4xl" />
             </div>
             <h3 className="text-xl font-bold text-gray-800 mb-3">تشفير البيانات</h3>
-            <p className="text-gray-600 leading-relaxed">
+                <p className="text-gray-600 leading-relaxed">
               جميع البيانات مشفرة باستخدام أحدث تقنيات الأمان لضمان سلامة معلوماتك.
             </p>
-          </div>
+              </div>
           <div className="bg-white rounded-lg shadow-lg p-6 text-center hover:shadow-xl transition-shadow border-t-4 border-purple-500">
             <div className="text-purple-500 mb-4 flex justify-center">
               <BiUser className="text-4xl" />
             </div>
             <h3 className="text-xl font-bold text-gray-800 mb-3">الخصوصية الشخصية</h3>
-            <p className="text-gray-600 leading-relaxed">
+                <p className="text-gray-600 leading-relaxed">
               نحترم خصوصيتك ولن نشارك معلوماتك مع أي طرف ثالث دون موافقتك.
             </p>
-          </div>
-        </div>
+              </div>
+            </div>
 
         {/* Main Content Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
@@ -158,7 +158,7 @@ function Privacy() {
                           {contactInfo.phone}
                         </a>
                       </div>
-                    </div>
+                  </div>
                   )}
                   
                   {contactInfo.whatsapp && (
@@ -174,8 +174,8 @@ function Privacy() {
                         >
                           {contactInfo.whatsapp}
                         </a>
-                      </div>
-                    </div>
+              </div>
+            </div>
                   )}
                   
                   {contactInfo.email && (
@@ -189,8 +189,8 @@ function Privacy() {
                         >
                           {contactInfo.email}
                         </a>
-                      </div>
-                    </div>
+                </div>
+                </div>
                   )}
                 </div>
               </div>
@@ -205,9 +205,9 @@ function Privacy() {
               <p className="text-gray-700 text-sm leading-relaxed">
                 قد نقوم بتحديث سياسة الخصوصية هذه من وقت لآخر. نوصي بمراجعة هذه السياسة بانتظام للبقاء على اطلاع بأحدث الممارسات.
               </p>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
 
         {/* Copyright Footer - Dynamic from last line of API */}
         {policyContent.content.length > 0 && (
