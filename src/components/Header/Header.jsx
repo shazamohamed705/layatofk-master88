@@ -81,9 +81,6 @@ function Header() {
               <NavLink to="/advertising" className="nav-link" >
                 إعلانات تجاريه
               </NavLink>
-              <NavLink to="/blog" className="nav-link" >
-                المدونة
-              </NavLink>
               <NavLink to="/products" className="nav-link" >
                 المنتجات
               </NavLink>
@@ -144,9 +141,6 @@ function Header() {
           </Link>
           <Link to="/products" className="text-white nav-link" onClick={closeMenu} >
             المنتجات
-          </Link>
-          <Link to="/blog" className="text-white nav-link" onClick={closeMenu} >
-            المدونة
           </Link>
           <NavLink to="/advertising" className="nav-link" >
             إعلانات تجاريه

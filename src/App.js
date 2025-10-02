@@ -17,8 +17,6 @@ const ProductDetails = lazy(() => import("./components/ProductDetails/ProductDet
 const Advertising = lazy(() => import("./components/Advertising/Advertising"));
 const Login = lazy(() => import("./components/Login/Login"));
 const Register = lazy(() => import("./components/Register/Register"));
-const Blog = lazy(() => import("./components/Blog/Blog"));
-const BlogDetails = lazy(() => import("./components/Blog/BlogDetails"));
 const Products = lazy(() => import("./components/Products/Products"));
 const Categories = lazy(() => import("./components/Categories/Categories"));
 // const NotFound = lazy(() => import("./components/NotFound/NotFound")); // Uncomment if used
@@ -33,12 +31,11 @@ const router = createBrowserRouter([
       { path: "privacy", element: <Privacy /> },
       { path: "about", element: <About /> },
       { path: "contact", element: <Contact /> },
+      { path: "product-details/:id", element: <ProductDetails /> },
       { path: "product-details", element: <ProductDetails /> },
       { path: "advertising", element: <Advertising /> },
       { path: "login", element: <Login /> },
       { path: "register", element: <Register /> },
-      { path: "blog", element: <Blog /> },
-      { path: "blog/:id", element: <BlogDetails /> },
       { path: "products", element: <Products /> },
       { path: "products/:subCatId", element: <Products /> },
       { path: "categories", element: <Categories /> },

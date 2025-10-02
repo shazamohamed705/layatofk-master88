@@ -4,6 +4,61 @@ import {  IoIosSearch } from "react-icons/io"
 import phone from '../../assets/phone.png'
 import { getJson, postForm } from '../../api'
 
+// Helper function to get image URL from all possible sources (same as Home.jsx)
+const getImageUrl = (item) => {
+  if (!item) {
+    console.log('⚠️ getImageUrl: item is null/undefined');
+    return null;
+  }
+  
+  // 1. Try images array first (most common in ads)
+  if (Array.isArray(item.images) && item.images.length > 0) {
+    const firstImage = item.images[0]
+    if (firstImage?.img) {
+      const imgUrl = firstImage.img
+      const fullUrl = imgUrl.startsWith('http') ? imgUrl : `https://lay6ofk.com${imgUrl.startsWith('/') ? '' : '/'}${imgUrl}`
+      console.log('✅ Found image in images[0].img:', fullUrl);
+      return fullUrl
+    }
+    if (firstImage?.image) {
+      const imgUrl = firstImage.image
+      const fullUrl = imgUrl.startsWith('http') ? imgUrl : `https://lay6ofk.com${imgUrl.startsWith('/') ? '' : '/'}${imgUrl}`
+      console.log('✅ Found image in images[0].image:', fullUrl);
+      return fullUrl
+    }
+  }
+  
+  // 2. Try direct image keys
+  const possibleKeys = ['img', 'image', 'thumbnail', 'photo', 'picture', 'icon', 'cover', 'banner']
+  for (const key of possibleKeys) {
+    if (item[key] && typeof item[key] === 'string') {
+      const imgUrl = item[key]
+      const fullUrl = imgUrl.startsWith('http') ? imgUrl : `https://lay6ofk.com${imgUrl.startsWith('/') ? '' : '/'}${imgUrl}`
+      console.log(`✅ Found image in ${key}:`, fullUrl);
+      return fullUrl
+    }
+  }
+  
+  // 3. Try user image as fallback
+  if (item.user?.img) {
+    const imgUrl = item.user.img
+    const fullUrl = imgUrl.startsWith('http') ? imgUrl : `https://lay6ofk.com${imgUrl.startsWith('/') ? '' : '/'}${imgUrl}`
+    console.log('✅ Found image in user.img:', fullUrl);
+    return fullUrl
+  }
+  
+  // 4. Try brand image
+  if (item.brand?.img) {
+    const imgUrl = item.brand.img
+    const fullUrl = imgUrl.startsWith('http') ? imgUrl : `https://lay6ofk.com${imgUrl.startsWith('/') ? '' : '/'}${imgUrl}`
+    console.log('✅ Found image in brand.img:', fullUrl);
+    return fullUrl
+  }
+  
+  console.log('❌ No image found for item:', item.id, item.name);
+  return null
+}
+
 function useQuery() {
   // Parse query string once
   const { search } = useLocation()
@@ -24,25 +79,30 @@ function Products() {
   const [apiCategories, setApiCategories] = useState([])
   const [categoriesLoading, setCategoriesLoading] = useState(true)
   
-  // Helper function to remove duplicates from products array
-  const removeDuplicateProducts = (products) => {
-    const seen = new Set()
-    let duplicateCount = 0
-    const unique = products.filter(product => {
-      if (seen.has(product.id)) {
-        duplicateCount++
-        return false
+  // Optimized function to remove duplicates from products array using Map for better performance
+  const removeDuplicateProducts = useMemo(() => {
+    return (products) => {
+      const seen = new Map() // Use Map instead of Set for better performance with large datasets
+      let duplicateCount = 0
+      
+      const unique = products.filter(product => {
+        if (!product.id) return false // Skip products without ID
+        
+        if (seen.has(product.id)) {
+          duplicateCount++
+          return false
+        }
+        seen.set(product.id, product) // Store the product for potential future use
+        return true
+      })
+      
+      if (duplicateCount > 0) {
+        console.warn(`🔄 تم إزالة ${duplicateCount} منتج مكرر في مرحلة الفلترة`)
       }
-      seen.add(product.id)
-      return true
-    })
-    
-    if (duplicateCount > 0) {
-      console.warn(`🔄 تم إزالة ${duplicateCount} منتج مكرر في مرحلة الفلترة`)
+      
+      return unique
     }
-    
-    return unique
-  }
+  }, [])
 
   // Fetch sub-categories from API for filter dropdown
   useEffect(() => {
@@ -141,66 +201,37 @@ function Products() {
         if (mounted && resp?.status && Array.isArray(resp.data)) {
           console.log('✅ عدد العناصر قبل إزالة التكرار:', resp.data.length)
           
-          if (resp.data.length > 0) {
-            // Remove duplicates based on ID before transformation (using Set for better performance)
-            const seenIds = new Set()
-            const uniqueData = resp.data.filter(item => {
-              if (!item.id || seenIds.has(item.id)) return false
-              seenIds.add(item.id)
-              return true
-            })
+            if (resp.data.length > 0) {
+              // Use the optimized duplicate removal function
+              const uniqueData = removeDuplicateProducts(resp.data)
+              
+              console.log('✅ عدد العناصر بعد إزالة التكرار:', uniqueData.length)
+              if (resp.data.length !== uniqueData.length) {
+                console.log('⚠️ تم إزالة', resp.data.length - uniqueData.length, 'عنصر مكرر')
+              }
             
-            console.log('✅ عدد العناصر بعد إزالة التكرار:', uniqueData.length)
-            if (resp.data.length !== uniqueData.length) {
-              console.log('⚠️ تم إزالة', resp.data.length - uniqueData.length, 'عنصر مكرر')
-            }
-            
-            // Transform API data to match component format
+            // Transform API data to match component format with error handling
             const transformedData = uniqueData.map((item) => {
-              // Extract image URL from all possible sources with priority order
-              const extractImageUrl = (item) => {
-                // Priority 1: images array
-                if (Array.isArray(item.images) && item.images.length > 0) {
-                  const img = item.images[0]
-                  return img?.img || img?.image || img?.url || img?.src || (typeof img === 'string' ? img : null)
+              try {
+                // Use the advanced image extraction logic
+                const fullImageUrl = getImageUrl(item)
+                
+                return {
+                  id: item.id,
+                  title: item.title || item.name || 'منتج بدون عنوان',
+                  price: `د.ك ${item.price || item.price_value || 0}`,
+                  location: item.location || item.area || 'الكويت',
+                  time: item.created_at || item.time || 'منذ ساعة',
+                  category: item.category_id || item.cat_id,
+                  image: fullImageUrl || phone, // Fallback to phone image
+                  condition: item.condition || item.type || 'غير محدد',
+                  img: fullImageUrl || phone // Ensure fallback image
                 }
-                
-                // Priority 2: Direct image properties
-                const directImage = item.img || item.image || item.thumbnail || item.photo || item.picture || item.image_url || item.img_url || item.src
-                if (directImage) return directImage
-                
-                // Priority 3: Nested structures (banner, media, attachments, category)
-                const nestedArrays = [
-                  item.catgeory, item.banner, item.media, item.attachments
-                ].find(arr => Array.isArray(arr) && arr.length > 0)
-                
-                if (nestedArrays) {
-                  const first = nestedArrays[0]
-                  return first?.img || first?.image || first?.url || first?.path || (typeof first === 'string' ? first : null)
-                }
-                
-                return null
+              } catch (error) {
+                console.error('Error transforming product item:', error, item)
+                return null // Return null for failed transformations
               }
-              
-              const imageUrl = extractImageUrl(item)
-              
-              // Build full image URL if needed
-              const fullImageUrl = imageUrl && !imageUrl.startsWith('http') 
-                ? `https://lay6ofk.com${imageUrl.startsWith('/') ? '' : '/'}${imageUrl}` 
-                : imageUrl
-              
-              return {
-                id: item.id,
-                title: item.title || item.name,
-                price: `د.ك ${item.price || item.price_value || 0}`,
-                location: item.location || item.area || 'الكويت',
-                time: item.created_at || item.time || 'منذ ساعة',
-                category: item.category_id || item.cat_id,
-                image: fullImageUrl,
-                condition: item.condition || item.type,
-                img: fullImageUrl
-              }
-            })
+            }).filter(Boolean) // Remove null values from failed transformations
             setApiItems(transformedData)
           } else {
             setApiItems([])
@@ -353,19 +384,26 @@ function Products() {
         {/* Products Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {sortedProducts.map((product) => (
-            <Link key={product.id} to={`/product-details`}>
+            <Link key={product.id} to={`/product-details/${product.id}`}>
               <article className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100 hover:shadow-md transition-all duration-300 hover:scale-105">
                 {/* Product Image */}
                 <div className="aspect-[4/3] w-full overflow-hidden relative bg-gray-100">
                   <img
                     src={product.image || product.img || phone}
                     alt={product.title}
-                    className="h-full w-full object-cover"
+                    className="h-full w-full object-cover transition-opacity duration-300 hover:scale-105"
+                    loading="lazy"
+                    decoding="async"
                     onError={(e) => {
                       // Fallback to placeholder on error
                       e.target.onerror = null;
                       e.target.src = phone;
                     }}
+                    onLoad={(e) => {
+                      // Smooth fade-in effect when image loads
+                      e.target.style.opacity = '1';
+                    }}
+                    style={{ opacity: 0.7 }}
                   />
                   {/* Condition Badge */}
                 {product.condition && (

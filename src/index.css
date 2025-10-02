@@ -150,25 +150,6 @@ body {
   @apply text-primary font-bold;
 }
 
-/* Fix for react-slick accessibility issues */
-.slick-cloned {
-  pointer-events: none !important;
-}
-
-.slick-cloned a,
-.slick-cloned button,
-.slick-cloned [tabindex] {
-  pointer-events: none !important;
-  user-select: none !important;
-}
-
-/* Ensure cloned slides are properly hidden from screen readers */
-.slick-slide[aria-hidden="true"] a,
-.slick-slide[aria-hidden="true"] button,
-.slick-slide[aria-hidden="true"] [tabindex] {
-  pointer-events: none !important;
-  user-select: none !important;
-}
 
 /* Animation for fade-in effect */
 @keyframes fade-in {
@@ -184,4 +165,208 @@ body {
 
 .animate-fade-in {
   animation: fade-in 0.6s ease-out;
+}
+
+/* Shimmer animation for loading skeleton */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.3) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite linear;
+}
+
+/* Slide in from right animation (for RTL) */
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(50px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.8s ease-out;
+}
+
+/* Image fade-in animation */
+@keyframes image-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-image-fade-in {
+  animation: image-fade-in 0.5s ease-in-out;
+}
+
+/* Story viewer animations */
+@keyframes story-modal-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-story-modal-enter {
+  animation: story-modal-enter 0.3s ease-out;
+}
+
+/* Zoom animation for story images */
+@keyframes zoom-in {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(2);
+  }
+}
+
+@keyframes zoom-out {
+  from {
+    transform: scale(2);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+.animate-zoom-in {
+  animation: zoom-in 0.3s ease-out forwards;
+}
+
+.animate-zoom-out {
+  animation: zoom-out 0.3s ease-out forwards;
+}
+
+/* Pulse animation for instructions */
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 0.7;
+    transform: translateX(-50%) scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1.05);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Smooth transitions for story interactions */
+.story-image-zoom {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: zoom-in;
+}
+
+.story-image-zoom:hover {
+  transform: scale(1.02);
+}
+
+.story-image-zoom.zoomed {
+  transform: scale(2);
+  cursor: zoom-out;
+}
+
+/* Enhanced backdrop blur for story modal */
+.story-modal-backdrop {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Story item - Pure CSS without Slick interference */
+.story-item {
+  pointer-events: auto;
+  position: relative;
+  cursor: pointer;
+}
+
+/* Fix for navigation gradient overlays interfering with clicks */
+.nav-gradient-overlay {
+  pointer-events: none !important;
+  z-index: 1;
+}
+
+/* Stories Wrapper - Position at far right (شمال in RTL) */
+.stories-wrapper {
+  width: 100%;
+  display: flex;
+  justify-content: flex-start;
+  direction: rtl;
+  padding: 0;
+  margin: 0;
+}
+
+/* Stories Scroll Container - Instagram-like scroll without scrollbar */
+.stories-scroll-container {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  max-width: 100%;
+  width: 100%;
+  direction: rtl;
+  padding: 16px 0;
+}
+
+/* Hide scrollbar completely for Instagram-like experience */
+.stories-scroll-container::-webkit-scrollbar {
+  display: none;
+}
+
+/* For Firefox - hide scrollbar */
+.stories-scroll-container {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+/* Story Item - Pure CSS without Slick */
+.story-item-wrapper {
+  flex: 0 0 auto;
+  min-width: 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  scroll-snap-align: start;
+}
+
+@media (min-width: 640px) {
+  .story-item-wrapper {
+    min-width: 96px;
+  }
+}
+
+@media (min-width: 768px) {
+  .story-item-wrapper {
+    min-width: 112px;
+  }
 }

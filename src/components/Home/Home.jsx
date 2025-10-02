@@ -99,6 +99,7 @@ function Home() {
     const [banners, setBanners] = useState([]);
     const [bannersLoading, setBannersLoading] = useState(true);
     const [bannersError, setBannersError] = useState(null);
+    const [bannersImagesLoaded, setBannersImagesLoaded] = useState(false);
     const [apiCategories, setApiCategories] = useState([]);
     const [categoriesLoading, setCategoriesLoading] = useState(true);
     const [categoriesError, setCategoriesError] = useState(null);
@@ -111,6 +112,7 @@ function Home() {
     const [secondBanners, setSecondBanners] = useState([]);
     const [secondBannersLoading, setSecondBannersLoading] = useState(true);
     const [secondBannersError, setSecondBannersError] = useState(null);
+    const [secondBannersImagesLoaded, setSecondBannersImagesLoaded] = useState(false);
     
     // Brands and Models filters (for cars category only)
     const [brands, setBrands] = useState([]);
@@ -119,6 +121,18 @@ function Home() {
     const [models, setModels] = useState([]);
     const [modelsLoading, setModelsLoading] = useState(false);
     const [selectedModel, setSelectedModel] = useState('');
+
+    // Separate ads from different categories
+    const [regularAds, setRegularAds] = useState([]);
+    const [commercialAds, setCommercialAds] = useState([]);
+    const [mobileAds, setMobileAds] = useState([]);
+    const [adsLoading, setAdsLoading] = useState(true);
+    const [adsError, setAdsError] = useState(null);
+
+    // Display 4 ads from each category
+    const displayedRegularAds = useMemo(() => regularAds.slice(4,8), [regularAds]);
+    const displayedCommercialAds = useMemo(() => commercialAds.slice(0, 4), [commercialAds]);
+    const displayedMobileAds = useMemo(() => mobileAds.slice(0, 4), [mobileAds]);
 
     // Helper: normalize banners payload (accept array or wrapped object)
     const normalizeBanners = (payload) => {
@@ -129,34 +143,58 @@ function Home() {
         return null
     }
 
-    // Helper: get image from multiple possible keys
+    // Helper: get image from all possible locations
     const getImageUrl = (item) => {
-        if (!item) return null
+        if (!item) {
+            console.log('⚠️ getImageUrl: item is null/undefined');
+            return null;
+        }
         
-        // Try different possible keys for image
-        const possibleKeys = ['img', 'image', 'thumbnail', 'photo', 'picture', 'icon']
+        // 1. Try images array first (most common in ads)
+        if (Array.isArray(item.images) && item.images.length > 0) {
+            const firstImage = item.images[0]
+            if (firstImage?.img) {
+                const imgUrl = firstImage.img
+                const fullUrl = imgUrl.startsWith('http') ? imgUrl : `https://lay6ofk.com${imgUrl.startsWith('/') ? '' : '/'}${imgUrl}`
+                console.log('✅ Found image in images[0].img:', fullUrl);
+                return fullUrl
+            }
+            if (firstImage?.image) {
+                const imgUrl = firstImage.image
+                const fullUrl = imgUrl.startsWith('http') ? imgUrl : `https://lay6ofk.com${imgUrl.startsWith('/') ? '' : '/'}${imgUrl}`
+                console.log('✅ Found image in images[0].image:', fullUrl);
+                return fullUrl
+            }
+        }
         
+        // 2. Try direct image keys
+        const possibleKeys = ['img', 'image', 'thumbnail', 'photo', 'picture', 'icon', 'cover', 'banner']
         for (const key of possibleKeys) {
-            if (item[key]) {
+            if (item[key] && typeof item[key] === 'string') {
                 const imgUrl = item[key]
-                // If it's a full URL, return as is
-                if (imgUrl.startsWith('http')) {
-                    return imgUrl
-                }
-                // If it's a relative path, add base URL
-                return `https://lay6ofk.com${imgUrl.startsWith('/') ? '' : '/'}${imgUrl}`
+                const fullUrl = imgUrl.startsWith('http') ? imgUrl : `https://lay6ofk.com${imgUrl.startsWith('/') ? '' : '/'}${imgUrl}`
+                console.log(`✅ Found image in ${key}:`, fullUrl);
+                return fullUrl
             }
         }
         
-        // Try images array (like in Products)
-        if (Array.isArray(item.images) && item.images.length > 0 && item.images[0]?.img) {
-            const imgUrl = item.images[0].img
-            if (imgUrl.startsWith('http')) {
-                return imgUrl
-            }
-            return `https://lay6ofk.com${imgUrl.startsWith('/') ? '' : '/'}${imgUrl}`
+        // 3. Try user image as fallback
+        if (item.user?.img) {
+            const imgUrl = item.user.img
+            const fullUrl = imgUrl.startsWith('http') ? imgUrl : `https://lay6ofk.com${imgUrl.startsWith('/') ? '' : '/'}${imgUrl}`
+            console.log('✅ Found image in user.img:', fullUrl);
+            return fullUrl
         }
         
+        // 4. Try brand image
+        if (item.brand?.img) {
+            const imgUrl = item.brand.img
+            const fullUrl = imgUrl.startsWith('http') ? imgUrl : `https://lay6ofk.com${imgUrl.startsWith('/') ? '' : '/'}${imgUrl}`
+            console.log('✅ Found image in brand.img:', fullUrl);
+            return fullUrl
+        }
+        
+        console.log('❌ No image found for item:', item.id, item.name);
         return null
     }
 
@@ -166,21 +204,47 @@ function Home() {
             try {
                 setBannersLoading(true);
                 setBannersError(null);
+                setBannersImagesLoaded(false);
                 const response = await getJson('/api/banners', { timeoutMs: 20000 });
                 const data = normalizeBanners(response)
                 if (data) {
                     setBanners(data);
-                    // Preload first banner image for faster display
-                    if (data.length > 0 && data[0]?.img) {
-                        const img = new Image();
-                        img.src = data[0].img;
+                    // Preload ALL banner images for instant display
+                    if (data.length > 0) {
+                        const imagePromises = data.map((banner) => {
+                            return new Promise((resolve) => {
+                                const imgUrl = getImageUrl(banner) || car;
+                                const img = new Image();
+                                img.onload = () => resolve(true);
+                                img.onerror = () => resolve(false);
+                                img.src = imgUrl;
+                            });
+                        });
+                        // Wait for all images to load
+                        Promise.all(imagePromises).then(() => {
+                            setBannersImagesLoaded(true);
+                        });
+                    } else {
+                        setBannersImagesLoaded(true);
                     }
                 } else if (response?.status && response?.data) {
                     // دعم الشكل القديم
                     setBanners(response.data)
-                    if (response.data.length > 0 && response.data[0]?.img) {
-                        const img = new Image();
-                        img.src = response.data[0].img;
+                    if (response.data.length > 0) {
+                        const imagePromises = response.data.map((banner) => {
+                            return new Promise((resolve) => {
+                                const imgUrl = getImageUrl(banner) || car;
+                                const img = new Image();
+                                img.onload = () => resolve(true);
+                                img.onerror = () => resolve(false);
+                                img.src = imgUrl;
+                            });
+                        });
+                        Promise.all(imagePromises).then(() => {
+                            setBannersImagesLoaded(true);
+                        });
+                    } else {
+                        setBannersImagesLoaded(true);
                     }
                 } else {
                     setBannersError('فشل في جلب بيانات البانرات');
@@ -275,20 +339,45 @@ function Home() {
             try {
                 setSecondBannersLoading(true);
                 setSecondBannersError(null);
+                setSecondBannersImagesLoaded(false);
                 const response = await getJson('/api/banners', { timeoutMs: 20000 });
                 const data = normalizeBanners(response)
                 if (data) {
                     setSecondBanners(data);
-                    // Preload first banner image for faster display
-                    if (data.length > 0 && data[0]?.img) {
-                        const img = new Image();
-                        img.src = data[0].img;
+                    // Preload ALL banner images for instant display
+                    if (data.length > 0) {
+                        const imagePromises = data.map((banner) => {
+                            return new Promise((resolve) => {
+                                const imgUrl = getImageUrl(banner) || car;
+                                const img = new Image();
+                                img.onload = () => resolve(true);
+                                img.onerror = () => resolve(false);
+                                img.src = imgUrl;
+                            });
+                        });
+                        Promise.all(imagePromises).then(() => {
+                            setSecondBannersImagesLoaded(true);
+                        });
+                    } else {
+                        setSecondBannersImagesLoaded(true);
                     }
                 } else if (response?.status && response?.data) {
                     setSecondBanners(response.data)
-                    if (response.data.length > 0 && response.data[0]?.img) {
-                        const img = new Image();
-                        img.src = response.data[0].img;
+                    if (response.data.length > 0) {
+                        const imagePromises = response.data.map((banner) => {
+                            return new Promise((resolve) => {
+                                const imgUrl = getImageUrl(banner) || car;
+                                const img = new Image();
+                                img.onload = () => resolve(true);
+                                img.onerror = () => resolve(false);
+                                img.src = imgUrl;
+                            });
+                        });
+                        Promise.all(imagePromises).then(() => {
+                            setSecondBannersImagesLoaded(true);
+                        });
+                    } else {
+                        setSecondBannersImagesLoaded(true);
                     }
                 } else {
                     setSecondBannersError('فشل في جلب بيانات البانرات');
@@ -400,6 +489,115 @@ function Home() {
         }
         return result
     }, [navGroups])
+
+    // Dynamically get 3 different category IDs (must be AFTER flattenedNav)
+    const categoryIds = useMemo(() => {
+        const ids = { regular: null, commercial: null, mobile: null };
+        
+        // Try to get three different categories from navigation
+        if (Array.isArray(flattenedNav) && flattenedNav.length >= 3) {
+            ids.regular = flattenedNav[0].id;
+            ids.commercial = flattenedNav[1].id;
+            ids.mobile = flattenedNav[2].id;
+            console.log('🎯 Using 3 category IDs:', ids);
+        }
+        // Fallback to main categories
+        else if (Array.isArray(apiCategories) && apiCategories.length >= 3) {
+            ids.regular = apiCategories[0]?.id;
+            ids.commercial = apiCategories[1]?.id;
+            ids.mobile = apiCategories[2]?.id;
+            console.log('🎯 Using category IDs from apiCategories:', ids);
+        }
+        // If less than 3 categories, use what's available
+        else if (Array.isArray(flattenedNav) && flattenedNav.length > 0) {
+            ids.regular = flattenedNav[0]?.id;
+            ids.commercial = flattenedNav[Math.min(1, flattenedNav.length - 1)]?.id;
+            ids.mobile = flattenedNav[flattenedNav.length - 1]?.id;
+            console.log('🎯 Using available category IDs:', ids);
+        }
+        
+        if (!ids.regular && !ids.commercial && !ids.mobile) {
+            console.log('⚠️ No category IDs found!');
+        }
+        
+        return ids;
+    }, [flattenedNav, apiCategories]);
+
+    // Fetch ads from 3 different categories
+    useEffect(() => {
+        // Wait until we have valid category IDs
+        if (!categoryIds.regular && !categoryIds.commercial && !categoryIds.mobile) {
+            return;
+        }
+
+        const fetchAllAds = async () => {
+            try {
+                setAdsLoading(true);
+                setAdsError(null);
+                
+                // Fetch from 3 different categories in parallel
+                const promises = [];
+                
+                if (categoryIds.regular) {
+                    console.log('📢 Fetching regular ads from category:', categoryIds.regular);
+                    promises.push(getJson(`/api/adv_by_cat?cat_id=${categoryIds.regular}`));
+                } else {
+                    promises.push(Promise.resolve({ status: false, data: [] }));
+                }
+                
+                if (categoryIds.commercial) {
+                    console.log('💼 Fetching commercial ads from category:', categoryIds.commercial);
+                    promises.push(getJson(`/api/adv_by_cat?cat_id=${categoryIds.commercial}`));
+                } else {
+                    promises.push(Promise.resolve({ status: false, data: [] }));
+                }
+                
+                if (categoryIds.mobile) {
+                    console.log('📱 Fetching mobile ads from category:', categoryIds.mobile);
+                    promises.push(getJson(`/api/adv_by_cat?cat_id=${categoryIds.mobile}`));
+                } else {
+                    promises.push(Promise.resolve({ status: false, data: [] }));
+                }
+                
+                const [regularResponse, commercialResponse, mobileResponse] = await Promise.all(promises);
+                
+                // Set regular ads
+                if (regularResponse?.status && Array.isArray(regularResponse.data)) {
+                    console.log('✅ Loaded', regularResponse.data.length, 'regular ads');
+                    setRegularAds(regularResponse.data);
+                } else {
+                    console.log('⚠️ No regular ads found');
+                    setRegularAds([]);
+                }
+                
+                // Set commercial ads
+                if (commercialResponse?.status && Array.isArray(commercialResponse.data)) {
+                    console.log('✅ Loaded', commercialResponse.data.length, 'commercial ads');
+                    setCommercialAds(commercialResponse.data);
+                } else {
+                    console.log('⚠️ No commercial ads found');
+                    setCommercialAds([]);
+                }
+                
+                // Set mobile ads
+                if (mobileResponse?.status && Array.isArray(mobileResponse.data)) {
+                    console.log('✅ Loaded', mobileResponse.data.length, 'mobile ads');
+                    setMobileAds(mobileResponse.data);
+                } else {
+                    console.log('⚠️ No mobile ads found');
+                    setMobileAds([]);
+                }
+                
+            } catch (error) {
+                console.error('❌ Error fetching ads:', error);
+                setAdsError('حدث خطأ في جلب بيانات الإعلانات');
+            } finally {
+                setAdsLoading(false);
+            }
+        };
+
+        fetchAllAds();
+    }, [categoryIds.regular, categoryIds.commercial, categoryIds.mobile]);
 
     // Fetch brands from API based on category (for cars category) - Using POST with cat_id
     const fetchBrands = async (categoryId) => {
@@ -537,20 +735,20 @@ function Home() {
     const settings = {
         dots: true,
         infinite: true,
-        speed: 300,
+        speed: 500,
         slidesToShow: 1,
         slidesToScroll: 1,
         autoplay: true,
-        autoplaySpeed: 2500,
+        autoplaySpeed: 3000,
         accessibility: true,
         adaptiveHeight: false,
         swipeToSlide: true,
         touchMove: true,
-        // إعدادات إضافية لتحسين الأداء والـ accessibility
-        lazyLoad: 'ondemand',
+        cssEase: 'cubic-bezier(0.4, 0, 0.2, 1)',
         pauseOnHover: true,
         pauseOnFocus: true,
         pauseOnDotsHover: true,
+        waitForAnimate: false,
     }
 
     // Use banners from API or fallback to default slides
@@ -636,47 +834,6 @@ function Home() {
         },
     ];
 
-
-    // Advertising data for home page
-    const homeBusinessCards = [
-        {
-            id: 1,
-            title: "صيانة تكييف مركزي",
-            subtitle: "و وحدات - فك وتركيب",
-            description: "خدمة سريعة 24 ساعة",
-            phone: "98974837",
-            bgColor: "bg-gradient-to-br from-blue-400 to-blue-600",
-            image: productImage,
-        },
-        {
-            id: 2,
-            title: "نشتري السيارات",
-            subtitle: "الجديدة و المستعملة",
-            description: "أفضل الأسعار - سرعة بالتحويل",
-            phone: "65888793",
-            phone2: "66936886",
-            bgColor: "bg-gradient-to-br from-red-500 to-red-700",
-            image: productImage,
-        },
-        {
-            id: 3,
-            title: "تصليح بكمالة",
-            subtitle: "غسالات أوتوماتيك وعادي",
-            description: "ثلاجات - في باكستان - في هندي",
-            phone: "99741313",
-            bgColor: "bg-gradient-to-br from-teal-500 to-blue-600",
-            image: productImage,
-        },
-        {
-            id: 4,
-            title: "صيانة التكييف المركزي",
-            subtitle: "تنظيف جميع أنواع التكييف المركزي والمنزلي من الداخل",
-            description: "صيانة وتنظيف تكييف مركزي وصيانة وحدات التكييف وتعبئة غاز",
-            phone: "97114270",
-            image: productImage,
-        },
-    ];
-
     return (
         <>
 
@@ -756,8 +913,8 @@ function Home() {
                 </div>
 
                 {/* Left/Right gradient masks for a pro look */}
-                <div className="pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-white/95 to-transparent" />
-                <div className="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-white/95 to-transparent" />
+                <div className="nav-gradient-overlay pointer-events-none absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-white/95 to-transparent" />
+                <div className="nav-gradient-overlay pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-white/95 to-transparent" />
 
                 {/* Fixed dropdown rendered outside the scroll container to avoid clipping */}
                 {hoveredCategory && dropdownPos && (
@@ -853,17 +1010,30 @@ function Home() {
                 )}
             </nav>
 
+            <div className="stories-wrapper">
             <Stories />
+            </div>
 
-
-            <section id="home" className="relative  my-10 ">
+            <section id="home" className="relative my-10">
                 {/* Hero Banner */}
-                <div className="relative ">
-                    {bannersLoading ? (
-                        <div className="relative h-96 bg-gradient-to-r from-gray-100 to-gray-200 flex items-center justify-center">
-                            <div className="text-center">
-                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-                                <p className="text-gray-600">جاري تحميل البانرات...</p>
+                <div className="relative">
+                    {bannersLoading || !bannersImagesLoaded ? (
+                        <div className="relative h-96 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 overflow-hidden">
+                            {/* Enhanced Skeleton Loader */}
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" 
+                                 style={{
+                                     backgroundSize: '200% 100%',
+                                     animation: 'shimmer 1.5s infinite linear'
+                                 }}
+                            ></div>
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="text-center">
+                                    <div className="relative w-16 h-16 mx-auto mb-4">
+                                        <div className="absolute inset-0 border-4 border-gray-300 rounded-full"></div>
+                                        <div className="absolute inset-0 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                                    </div>
+                                    <p className="text-gray-600 font-medium animate-pulse">جاري تحميل البانرات...</p>
+                                </div>
                             </div>
                         </div>
                     ) : bannersError ? (
@@ -879,50 +1049,50 @@ function Home() {
                             </div>
                         </div>
                     ) : (
-                        <Slider {...settings}>
-                            {slides.map((slide, index) => (
-                                <div key={slide.id} className="relative">
-                                    <div className="relative h-96 overflow-hidden">
-                                        {/* Background gradient placeholder */}
-                                        <div className="absolute inset-0 bg-gradient-to-r from-gray-100 to-gray-200 animate-pulse"></div>
-                                        
-                                        {/* Image */}
-                                        <img 
-                                            src={slide.image || car} 
-                                            alt={slide.title} 
-                                            className="relative w-full h-full object-cover" 
-                                            loading={index === 0 ? "eager" : "lazy"}
-                                            fetchPriority={index === 0 ? "high" : "auto"}
-                                            onError={(e) => {
-                                                e.target.onerror = null
-                                                e.target.src = car
-                                            }}
-                                        />
-                                        <div className="absolute inset-0 bg-black/20"></div>
-                                        <div className="absolute right-8 top-1/2 transform -translate-y-1/2 text-right max-w-96 z-20">
-                                            <h1 className="text-4xl md:text-7xl font-black text-white mb-4 drop-shadow-lg leading-loose">{slide.title}</h1>
-                                        </div>
-                                        {/* Logo overlay */}
-                                        <div className="absolute bottom-8 left-8 text-white z-20">
-                                            <img src={logo} alt="logo" className="w-30 h-20" />
-                                        </div>
-                                        {/* Clickable link overlay */}
-                                        {slide.link && (
-                                            <a 
-                                                href={slide.link.startsWith('http') ? slide.link : `https://${slide.link}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="absolute inset-0 z-30"
-                                                aria-label={`انتقل إلى ${slide.title}`}
-                                                tabIndex={-1}
-                                                aria-hidden="true"
-                                                role="presentation"
+                        <div className="animate-fade-in">
+                            <Slider {...settings}>
+                                {slides.map((slide, index) => (
+                                    <div key={slide.id} className="relative">
+                                        <div className="relative h-96 overflow-hidden bg-gray-200">
+                                            {/* Image with smooth fade-in */}
+                                            <img 
+                                                src={slide.image || car} 
+                                                alt={slide.title} 
+                                                className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500"
+                                                style={{ opacity: 1 }}
+                                                loading="eager"
+                                                fetchPriority={index === 0 ? "high" : "auto"}
+                                                onError={(e) => {
+                                                    e.target.onerror = null
+                                                    e.target.src = car
+                                                }}
                                             />
-                                        )}
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
+                                            <div className="absolute right-8 top-1/2 transform -translate-y-1/2 text-right max-w-96 z-20 animate-slide-in-right">
+                                                <h1 className="text-4xl md:text-7xl font-black text-white mb-4 drop-shadow-2xl leading-loose">{slide.title}</h1>
+                                            </div>
+                                            {/* Logo overlay */}
+                                            <div className="absolute bottom-8 left-8 text-white z-20">
+                                                <img src={logo} alt="logo" className="w-30 h-20 drop-shadow-lg" />
+                                            </div>
+                                            {/* Clickable link overlay */}
+                                            {slide.link && (
+                                                <a 
+                                                    href={slide.link.startsWith('http') ? slide.link : `https://${slide.link}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="absolute inset-0 z-30"
+                                                    aria-label={`انتقل إلى ${slide.title}`}
+                                                    tabIndex={-1}
+                                                    aria-hidden="true"
+                                                    role="presentation"
+                                                />
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
-                        </Slider>
+                                ))}
+                            </Slider>
+                        </div>
                     )}
                 </div>
             </section>
@@ -983,7 +1153,7 @@ function Home() {
                 )}
             </section>
 
-            {/* Advertising Section */}
+            {/* Advertising Section - Regular Ads */}
             <section className="py-6 bg-white">
                 <div className="container mx-auto px-4">
                     {/* Header */}
@@ -992,60 +1162,129 @@ function Home() {
                             <h2 className="text-3xl font-bold text-primary mb-2">إعلانات مقدمه حاليا</h2>
                             <p className="text-gray-600">خدمات واحترافيين موثوقين</p>
                         </div>
-                        <Link to="/advertising" className="flex items-center gap-2 text-primary font-bold hover:text-primary/80 transition-colors duration-300">
+                        <Link to={`/products?cat_id=${categoryIds.regular}`} className="flex items-center gap-2 text-primary font-bold hover:text-primary/80 transition-colors duration-300">
                             عرض جميع الإعلانات
                             <IoIosArrowBack />
                         </Link>
                     </div>
 
                     {/* Business Cards Grid */}
-                    <main className=" mx-auto py-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                            {homeBusinessCards.map((card) => (
-                                <div key={card.id} className={`rounded-2xl p-6 text-white shadow-lg`}>
-                                    <div className="flex flex-col h-full">
-                                        {/* Content */}
-                                        <div className="flex-1">
-
-                                            {/* Image */}
-                                            <div className="mb-4">
+                    <main className="mx-auto py-4">
+                        {adsLoading ? (
+                            <div className="flex justify-center items-center py-12">
+                                <div className="text-center">
+                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                                    <p className="text-gray-600">جاري تحميل الإعلانات...</p>
+                                </div>
+                            </div>
+                        ) : adsError ? (
+                            <div className="flex justify-center items-center py-12">
+                                <div className="text-center">
+                                    <p className="text-red-600 mb-4">{adsError}</p>
+                                    <button 
+                                        onClick={() => window.location.reload()} 
+                                        className="bg-primary text-white px-4 py-2 rounded hover:bg-primary/80 transition"
+                                    >
+                                        إعادة المحاولة
+                                    </button>
+                                </div>
+                            </div>
+                        ) : displayedRegularAds.length === 0 ? (
+                            <div className="text-center py-12 text-gray-500">
+                                لا توجد إعلانات متاحة حالياً
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                {displayedRegularAds.map((ad) => {
+                                    // Get first image from ad or fallback
+                                    const adImage = getImageUrl(ad) || productImage;
+                                    
+                                    // Get phone numbers - prefer specific fields over general phone
+                                    const whatsappNumber = ad.whatsapp || ad.phone;
+                                    const phoneNumber = ad.phone;
+                                    
+                                    return (
+                                        <div key={ad.id} className="rounded-2xl overflow-hidden bg-white border border-gray-200 shadow-md hover:shadow-xl transition-all duration-300 relative">
+                                            {/* Image - Full Card Size */}
+                                            <div className="relative aspect-[3/4]">
                                                 <img
-                                                    src={card.image || productImage}
-                                                    alt={card.title}
-                                                    width={200}
-                                                    height={120}
-                                                    className="rounded-lg object-cover w-full"
+                                                    src={adImage}
+                                                    alt={ad.name}
+                                                    className="w-full h-full object-cover"
+                                                    onError={(e) => {
+                                                        e.target.onerror = null;
+                                                        e.target.src = productImage;
+                                                    }}
                                                 />
+                                                
+                                                {/* Price Badge - Top Right */}
+                                                {ad.price && (
+                                                    <div className="absolute top-4 right-4 bg-primary text-white px-4 py-2 rounded-full font-bold shadow-lg">
+                                                        {ad.price.toLocaleString('en-US')} KD
+                                                    </div>
+                                                )}
+                                                
+                                                {/* Text Overlay */}
+                                                <div className="absolute bottom-16 left-0 right-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-6 pt-12">
+                                                    {/* Title */}
+                                                    <h3 className="text-xl font-bold mb-2 line-clamp-2 text-white drop-shadow-lg">{ad.name}</h3>
+                                                    
+                                                    {/* Description */}
+                                                    <p className="text-sm line-clamp-2 text-white/95 drop-shadow-md">{ad.description}</p>
+                                                </div>
+
+                                                {/* Action Buttons - Absolute at Bottom */}
+                                                <div className="absolute bottom-0 left-0 right-0 flex gap-3 p-4 bg-white/95 backdrop-blur-sm">
+                                                    {whatsappNumber ? (
+                                                        <a 
+                                                            href={`https://wa.me/${whatsappNumber}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 px-4 rounded-full flex items-center justify-center gap-2 transition-colors shadow-sm"
+                                                        >
+                                                            <FaWhatsapp size={22} />
+                                                        </a>
+                                                    ) : null}
+                                                    {phoneNumber ? (
+                                                        <a 
+                                                            href={`tel:${phoneNumber}`}
+                                                            className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-3 px-4 rounded-full flex items-center justify-center gap-2 transition-colors shadow-sm"
+                                                        >
+                                                            <BiPhone size={22} />
+                                                        </a>
+                                                    ) : null}
+                                                </div>
                                             </div>
                                         </div>
-
-
-                                        {/* Action Buttons */}
-                                        <div className="flex gap-3">
-                                            <button className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 px-4 rounded-full flex items-center justify-center gap-2 transition-colors">
-                                                <FaWhatsapp size={20} />
-                                            </button>
-                                            <button className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-3 px-4 rounded-full flex items-center justify-center gap-2 transition-colors">
-                                                <BiPhone size={20} />
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </main>
                 </div>
             </section>
 
 
             {/* banner */}
-            <section className="relative  my-10 ">
-                <div className="relative ">
-                    {secondBannersLoading ? (
-                        <div className="relative h-96 bg-gradient-to-r from-gray-100 to-gray-200 flex items-center justify-center">
-                            <div className="text-center">
-                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-                                <p className="text-gray-600">جاري تحميل البانرات...</p>
+            <section className="relative my-10">
+                <div className="relative">
+                    {secondBannersLoading || !secondBannersImagesLoaded ? (
+                        <div className="relative h-96 bg-gradient-to-r from-gray-200 via-gray-300 to-gray-200 overflow-hidden">
+                            {/* Enhanced Skeleton Loader */}
+                            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" 
+                                 style={{
+                                     backgroundSize: '200% 100%',
+                                     animation: 'shimmer 1.5s infinite linear'
+                                 }}
+                            ></div>
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="text-center">
+                                    <div className="relative w-16 h-16 mx-auto mb-4">
+                                        <div className="absolute inset-0 border-4 border-gray-300 rounded-full"></div>
+                                        <div className="absolute inset-0 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                                    </div>
+                                    <p className="text-gray-600 font-medium animate-pulse">جاري تحميل البانرات...</p>
+                                </div>
                             </div>
                         </div>
                     ) : secondBannersError ? (
@@ -1061,55 +1300,55 @@ function Home() {
                             </div>
                         </div>
                     ) : (
-                        <Slider {...settings}>
-                            {secondSlides.map((slide, index) => (
-                                <div key={slide.id} className="relative">
-                                    <div className="relative h-96 overflow-hidden">
-                                        {/* Background gradient placeholder */}
-                                        <div className="absolute inset-0 bg-gradient-to-r from-gray-100 to-gray-200 animate-pulse"></div>
-                                        
-                                        {/* Image */}
-                                        <img 
-                                            src={slide.image || car} 
-                                            alt={slide.title} 
-                                            className="relative w-full h-full object-cover" 
-                                            loading={index === 0 ? "eager" : "lazy"}
-                                            fetchPriority={index === 0 ? "high" : "auto"}
-                                            onError={(e) => {
-                                                e.target.onerror = null
-                                                e.target.src = car
-                                            }}
-                                        />
-                                        <div className="absolute inset-0 bg-black/20"></div>
-                                        <div className="absolute right-8 top-1/2 transform -translate-y-1/2 text-right max-w-96 z-20">
-                                            <h1 className="text-4xl md:text-7xl font-black text-white mb-4 drop-shadow-lg leading-loose">{slide.title}</h1>
-                                        </div>
-                                        {/* Logo overlay */}
-                                        <div className="absolute bottom-8 left-8 text-white z-20">
-                                            <img src={logo} alt="logo" className="w-30 h-20" />
-                                        </div>
-                                        {/* Clickable link overlay */}
-                                        {slide.link && (
-                                            <a 
-                                                href={slide.link.startsWith('http') ? slide.link : `https://${slide.link}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="absolute inset-0 z-30"
-                                                aria-label={`انتقل إلى ${slide.title}`}
-                                                tabIndex={-1}
-                                                aria-hidden="true"
-                                                role="presentation"
+                        <div className="animate-fade-in">
+                            <Slider {...settings}>
+                                {secondSlides.map((slide, index) => (
+                                    <div key={slide.id} className="relative">
+                                        <div className="relative h-96 overflow-hidden bg-gray-200">
+                                            {/* Image with smooth fade-in */}
+                                            <img 
+                                                src={slide.image || car} 
+                                                alt={slide.title} 
+                                                className="absolute inset-0 w-full h-full object-cover transition-opacity duration-500"
+                                                style={{ opacity: 1 }}
+                                                loading="eager"
+                                                fetchPriority={index === 0 ? "high" : "auto"}
+                                                onError={(e) => {
+                                                    e.target.onerror = null
+                                                    e.target.src = car
+                                                }}
                                             />
-                                        )}
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent"></div>
+                                            <div className="absolute right-8 top-1/2 transform -translate-y-1/2 text-right max-w-96 z-20 animate-slide-in-right">
+                                                <h1 className="text-4xl md:text-7xl font-black text-white mb-4 drop-shadow-2xl leading-loose">{slide.title}</h1>
+                                            </div>
+                                            {/* Logo overlay */}
+                                            <div className="absolute bottom-8 left-8 text-white z-20">
+                                                <img src={logo} alt="logo" className="w-30 h-20 drop-shadow-lg" />
+                                            </div>
+                                            {/* Clickable link overlay */}
+                                            {slide.link && (
+                                                <a 
+                                                    href={slide.link.startsWith('http') ? slide.link : `https://${slide.link}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="absolute inset-0 z-30"
+                                                    aria-label={`انتقل إلى ${slide.title}`}
+                                                    tabIndex={-1}
+                                                    aria-hidden="true"
+                                                    role="presentation"
+                                                />
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
-                            ))}
-                        </Slider>
+                                ))}
+                            </Slider>
+                        </div>
                     )}
                 </div>
             </section>
 
-            {/* Advertising Section */}
+            {/* Advertising Section - Commercial Ads */}
             <section className="py-6 bg-white">
                 <div className="container mx-auto px-4">
                     {/* Header */}
@@ -1125,40 +1364,97 @@ function Home() {
                     </div>
 
                     {/* Business Cards Grid */}
-                    <main className=" mx-auto py-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                            {homeBusinessCards.map((card) => (
-                                <div key={card.id} className={`rounded-2xl p-6 text-white shadow-lg`}>
-                                    <div className="flex flex-col h-full">
-                                        {/* Content */}
-                                        <div className="flex-1">
-
-                                            {/* Image */}
-                                            <div className="mb-4">
+                    <main className="mx-auto py-4">
+                        {adsLoading ? (
+                            <div className="flex justify-center items-center py-12">
+                                <div className="text-center">
+                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+                                    <p className="text-gray-600">جاري تحميل الإعلانات...</p>
+                                </div>
+                            </div>
+                        ) : adsError ? (
+                            <div className="flex justify-center items-center py-12">
+                                <div className="text-center">
+                                    <p className="text-red-600 mb-4">{adsError}</p>
+                                    <button 
+                                        onClick={() => window.location.reload()} 
+                                        className="bg-primary text-white px-4 py-2 rounded hover:bg-primary/80 transition"
+                                    >
+                                        إعادة المحاولة
+                                    </button>
+                                </div>
+                            </div>
+                        ) : displayedCommercialAds.length === 0 ? (
+                            <div className="text-center py-12 text-gray-500">
+                                لا توجد إعلانات تجارية متاحة حالياً
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                {displayedCommercialAds.map((ad) => {
+                                    // Get image from ad or fallback
+                                    const adImage = getImageUrl(ad) || productImage;
+                                    
+                                    // Get phone numbers - prefer specific fields over general phone
+                                    const whatsappNumber = ad.whatsapp || ad.phone;
+                                    const phoneNumber = ad.phone;
+                                    
+                                    return (
+                                        <div key={ad.id} className="rounded-2xl overflow-hidden bg-white border border-gray-200 shadow-md hover:shadow-xl transition-all duration-300 relative">
+                                            {/* Image - Full Card Size */}
+                                            <div className="relative aspect-[3/4]">
                                                 <img
-                                                    src={card.image || productImage}
-                                                    alt={card.title}
-                                                    width={200}
-                                                    height={120}
-                                                    className="rounded-lg object-cover w-full"
+                                                    src={adImage}
+                                                    alt={ad.name}
+                                                    className="w-full h-full object-cover"
+                                                    onError={(e) => {
+                                                        e.target.onerror = null;
+                                                        e.target.src = productImage;
+                                                    }}
                                                 />
+                                                
+                                                {/* Price Badge - Top Right */}
+                                                {ad.price && (
+                                                    <div className="absolute top-4 right-4 bg-primary text-white px-4 py-2 rounded-full font-bold shadow-lg">
+                                                        {ad.price.toLocaleString('en-US')} KD
+                                                    </div>
+                                                )}
+                                                
+                                                {/* Text Overlay */}
+                                                <div className="absolute bottom-16 left-0 right-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-6 pt-12">
+                                                    {/* Title */}
+                                                    <h3 className="text-xl font-bold mb-2 line-clamp-2 text-white drop-shadow-lg">{ad.name}</h3>
+                                                    
+                                                    {/* Description */}
+                                                    <p className="text-sm line-clamp-2 text-white/95 drop-shadow-md">{ad.description}</p>
+                                                </div>
+
+                                                {/* Action Buttons - Absolute at Bottom */}
+                                                <div className="absolute bottom-0 left-0 right-0 flex gap-3 p-4 bg-white/95 backdrop-blur-sm">
+                                                    {whatsappNumber ? (
+                                                        <a 
+                                                            href={`https://wa.me/${whatsappNumber}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 px-4 rounded-full flex items-center justify-center gap-2 transition-colors shadow-sm"
+                                                        >
+                                                            <FaWhatsapp size={22} />
+                                                        </a>
+                                                    ) : null}
+                                                    {phoneNumber ? (
+                                                        <a 
+                                                            href={`tel:${phoneNumber}`}
+                                                            className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-3 px-4 rounded-full flex items-center justify-center gap-2 transition-colors shadow-sm"
+                                                        >
+                                                            <BiPhone size={22} />
+                                                        </a>
+                                                    ) : null}
+                                                </div>
                                             </div>
                                         </div>
-
-
-                                        {/* Action Buttons */}
-                                        <div className="flex gap-3">
-                                            <button className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 px-4 rounded-full flex items-center justify-center gap-2 transition-colors">
-                                                <FaWhatsapp size={20} />
-                                            </button>
-                                            <button className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-3 px-4 rounded-full flex items-center justify-center gap-2 transition-colors">
-                                                <BiPhone size={20} />
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
                     </main>
                 </div>
             </section>
@@ -1170,48 +1466,93 @@ function Home() {
                     {/* Header */}
                     <div className="flex justify-between items-center mb-6">
                         <div>
-                            <h2 className="text-2xl font-bold text-gray-800">الهواتف المحمولة
+                            <h2 className="text-2xl font-bold text-gray-800">درجات ناريه 
                             </h2>
                             <p className="text-sm text-gray-500">تسوق احدث المنتجات المميزة المضافة جديد</p>
                         </div>
-                        <Link to="/products" className="flex items-center gap-1 text-sm border border-primary text-primary px-3 py-1 rounded hover:bg-primary hover:text-white transition">
+                        <Link to={`/products?cat_id=${categoryIds.mobile}`} className="flex items-center gap-1 text-sm border border-primary text-primary px-3 py-1 rounded hover:bg-primary hover:text-white transition">
                             عرض الكل
                             <IoIosArrowBack />
                         </Link>
                     </div>
                     {/* Cards */}
+                    {adsLoading ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {items.map((item) => (
-                            <Link key={item.id} to="/product-details">
-                                <article
-                                    className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100 hover:shadow-md transition"
-                                >
+                            {[1, 2, 3, 4].map((i) => (
+                                <div key={i} className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100 animate-pulse">
+                                    <div className="aspect-[4/3] w-full bg-gray-300"></div>
+                                    <div className="p-4 space-y-3">
+                                        <div className="h-4 bg-gray-300 rounded w-3/4"></div>
+                                        <div className="h-3 bg-gray-300 rounded w-1/2"></div>
+                                        <div className="h-3 bg-gray-300 rounded w-2/3"></div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : adsError ? (
+                        <div className="text-center py-12">
+                            <p className="text-red-600 mb-4">{adsError}</p>
+                            <button 
+                                onClick={() => window.location.reload()} 
+                                className="bg-primary text-white px-6 py-2 rounded hover:bg-primary/80 transition"
+                            >
+                                إعادة المحاولة
+                            </button>
+                        </div>
+                    ) : displayedMobileAds.length === 0 ? (
+                        <div className="text-center py-12 text-gray-500">
+                            لا توجد هواتف محمولة متاحة حالياً
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                            {displayedMobileAds.map((ad) => {
+                                const adImage = getImageUrl(ad) || phone;
+                                
+                                return (
+                                    <Link key={ad.id} to={`/product-details/${ad.id}`}>
+                                        <article className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100 hover:shadow-md transition">
                                     <div className="aspect-[4/3] w-full overflow-hidden">
                                         <img
-                                            src={item.img}
-                                            alt={item.title}
+                                                    src={adImage}
+                                                    alt={ad.name}
                                             className="h-full w-full object-cover"
+                                                    onError={(e) => {
+                                                        e.target.onerror = null;
+                                                        e.target.src = phone;
+                                                    }}
                                         />
                                     </div>
 
                                     <div className="p-4">
+                                                {ad.price && (
                                         <p className="text-primary-600 font-bold text-sm mb-1">
-                                            {item.price}
+                                                        {ad.price} د.ك
                                         </p>
+                                                )}
 
                                         <h3 className="text-sm font-medium text-gray-900 leading-6 mb-2">
-                                            {item.title}
+                                                    {ad.name}
                                         </h3>
 
                                         <div className="text-xs text-gray-500 space-y-1">
-                                            <p>{item.location}</p>
-                                            <p>{item.time}</p>
+                                                    {ad.user?.name && <p>{ad.user.name}</p>}
+                                                    {ad.created_at && (
+                                                        <p>
+                                                            {new Date(ad.created_at).toLocaleDateString('ar-EG', {
+                                                                year: 'numeric',
+                                                                month: 'short',
+                                                                day: 'numeric'
+                                                            })}
+                                                        </p>
+                                                    )}
                                         </div>
                                     </div>
                                 </article>
                             </Link>
-                        ))}
+                                );
+                            })}
                     </div>
+                    )}
                 </div>
             </section>
 
