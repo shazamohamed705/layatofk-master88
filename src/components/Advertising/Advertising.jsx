@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
-import productImage from "../../assets/product1.jpg"
 import { BiPhone } from 'react-icons/bi'
 import { FaWhatsapp } from 'react-icons/fa'
 import { IoIosArrowDown, IoIosArrowBack } from "react-icons/io";
@@ -21,6 +20,11 @@ function Advertising() {
     const closeTimerRef = useRef(null);
     const navRef = useRef(null);
     const dropdownRef = useRef(null);
+    
+    // Pagination states
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalAds, setTotalAds] = useState(0);
     
     // Brands and Models filters
     const [brands, setBrands] = useState([]);
@@ -75,39 +79,25 @@ function Advertising() {
         }
     }
 
-    // Helper: get image from all possible locations
-    const getImageUrl = (item) => {
-        if (!item) return null;
+    // Helper: Build image URL from API data
+    const getImageUrl = (ad) => {
+        if (!ad) return null;
         
-        // 1. Try images array first (most common in ads)
-        if (Array.isArray(item.images) && item.images.length > 0) {
-            const firstImage = item.images[0]
+        // Get image from images array (main source for ads)
+        if (Array.isArray(ad.images) && ad.images.length > 0) {
+            const firstImage = ad.images[0];
             if (firstImage?.img) {
-                const imgUrl = firstImage.img
-                return imgUrl.startsWith('http') ? imgUrl : `https://lay6ofk.com${imgUrl.startsWith('/') ? '' : '/'}${imgUrl}`
-            }
-            if (firstImage?.image) {
-                const imgUrl = firstImage.image
-                return imgUrl.startsWith('http') ? imgUrl : `https://lay6ofk.com${imgUrl.startsWith('/') ? '' : '/'}${imgUrl}`
-            }
-        }
-        
-        // 2. Try direct image keys
-        const possibleKeys = ['img', 'image', 'thumbnail', 'photo', 'picture', 'icon', 'cover', 'banner']
-        for (const key of possibleKeys) {
-            if (item[key] && typeof item[key] === 'string') {
-                const imgUrl = item[key]
-                return imgUrl.startsWith('http') ? imgUrl : `https://lay6ofk.com${imgUrl.startsWith('/') ? '' : '/'}${imgUrl}`
+                const imgFileName = firstImage.img;
+                // If already full URL, return as is
+                if (imgFileName.startsWith('http')) {
+                    return imgFileName;
+                }
+                // Build full URL - assuming images are in /uploads/ads/ directory
+                return `https://lay6ofk.com/uploads/ads/${imgFileName}`;
             }
         }
         
-        // 3. Try user image as fallback
-        if (item.user?.img) {
-            const imgUrl = item.user.img
-            return imgUrl.startsWith('http') ? imgUrl : `https://lay6ofk.com${imgUrl.startsWith('/') ? '' : '/'}${imgUrl}`
-        }
-        
-        return null
+        return null;
     }
 
     // Fetch categories from API
@@ -292,31 +282,23 @@ function Advertising() {
         return result
     }, [navGroups])
 
-    // Get commercial category ID (second category from navigation)
-    const commercialCategoryId = useMemo(() => {
-        if (Array.isArray(flattenedNav) && flattenedNav.length >= 2) {
-            return flattenedNav[1].id;
-        }
-        if (Array.isArray(apiCategories) && apiCategories.length >= 2) {
-            return apiCategories[1]?.id;
-        }
-        return null;
-    }, [flattenedNav, apiCategories]);
-
     // Fetch commercial ads from API
     useEffect(() => {
-        if (!commercialCategoryId) return;
-
         const fetchCommercialAds = async () => {
             try {
                 setAdsLoading(true);
                 setAdsError(null);
                 
-                const response = await getJson(`/api/adv_by_cat?cat_id=${commercialCategoryId}`);
+                const response = await getJson(`/api/ads?page=${currentPage}`);
                 
-                if (response?.status && Array.isArray(response.data)) {
-                    console.log('✅ Loaded', response.data.length, 'commercial ads');
-                    setCommercialAds(response.data);
+                if (response?.status && response?.ads?.data && Array.isArray(response.ads.data)) {
+                    // Filter only commercial ads (show_on_commercial = 1)
+                    const commercialOnly = response.ads.data.filter(ad => ad.show_on_commercial === 1);
+                    console.log('✅ Loaded', commercialOnly.length, 'commercial ads from page', currentPage);
+                    
+                    setCommercialAds(commercialOnly);
+                    setTotalPages(response.ads.last_page || 1);
+                    setTotalAds(response.ads.total || 0);
                 } else {
                     console.log('⚠️ No commercial ads found');
                     setCommercialAds([]);
@@ -330,7 +312,10 @@ function Advertising() {
         };
 
         fetchCommercialAds();
-    }, [commercialCategoryId]);
+        
+        // Scroll to top when page changes
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, [currentPage]);
 
   return (
     <>
@@ -536,23 +521,35 @@ function Advertising() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {commercialAds.map((ad) => {
-              const adImage = getImageUrl(ad) || productImage;
+              const adImage = getImageUrl(ad);
               const whatsappNumber = ad.whatsapp || ad.phone;
               const phoneNumber = ad.phone;
               
               return (
                 <div key={ad.id} className="rounded-2xl overflow-hidden bg-white border border-gray-200 shadow-md hover:shadow-xl transition-all duration-300 relative">
                   {/* Image - Full Card Size */}
-                  <div className="relative aspect-[3/4]">
-                    <img
-                      src={adImage}
-                      alt={ad.name}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.target.onerror = null;
-                        e.target.src = productImage;
-                      }}
-                    />
+                  <div className="relative aspect-[3/4] bg-gray-100">
+                    {adImage ? (
+                      <img
+                        src={adImage}
+                        alt={ad.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.style.display = 'none';
+                          e.target.nextElementSibling.style.display = 'flex';
+                        }}
+                      />
+                    ) : null}
+                    {/* Placeholder for missing or failed images */}
+                    <div 
+                      className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200"
+                      style={{ display: adImage ? 'none' : 'flex' }}
+                    >
+                      <svg className="w-24 h-24 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </div>
                     
                     {/* Price Badge - Top Right */}
                     {ad.price && (
@@ -595,6 +592,77 @@ function Advertising() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* Pagination */}
+        {!adsLoading && !adsError && commercialAds.length > 0 && totalPages > 1 && (
+          <div className="flex justify-center items-center gap-2 mt-12 pb-8">
+            {/* Previous Button */}
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all ${
+                currentPage === 1
+                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  : 'bg-primary text-white hover:bg-primary/80'
+              }`}
+            >
+              <IoIosArrowBack className="rotate-180" />
+              السابق
+            </button>
+
+            {/* Page Numbers */}
+            <div className="flex gap-2">
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => {
+                // Show first page, last page, current page, and adjacent pages
+                if (
+                  pageNum === 1 ||
+                  pageNum === totalPages ||
+                  (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
+                ) {
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`w-10 h-10 rounded-lg font-semibold transition-all ${
+                        pageNum === currentPage
+                          ? 'bg-primary text-white scale-110'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                }
+                // Show dots for skipped pages
+                if (pageNum === currentPage - 2 || pageNum === currentPage + 2) {
+                  return <span key={pageNum} className="px-2 text-gray-400">...</span>;
+                }
+                return null;
+              })}
+            </div>
+
+            {/* Next Button */}
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+              className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-all ${
+                currentPage === totalPages
+                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  : 'bg-primary text-white hover:bg-primary/80'
+              }`}
+            >
+              التالي
+              <IoIosArrowBack />
+            </button>
+          </div>
+        )}
+
+        {/* Pagination Info */}
+        {!adsLoading && !adsError && totalAds > 0 && (
+          <div className="text-center text-sm text-gray-500 pb-4">
+            عرض {commercialAds.length} من أصل {totalAds} إعلان تجاري
           </div>
         )}
       </main>

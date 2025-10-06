@@ -15,6 +15,11 @@ const About = lazy(() => import("./components/About/About"));
 const Contact = lazy(() => import("./components/Contact/Contact"));
 const ProductDetails = lazy(() => import("./components/ProductDetails/ProductDetails"));
 const Advertising = lazy(() => import("./components/Advertising/Advertising"));
+const ShareAdds = lazy(() => import("./components/Share/ShareAdds"));
+const CarPages = lazy(() => import("./components/Share/CarPages"));
+const ModelsPage = lazy(() => import("./components/Share/ModelsPage"));
+const BrandsPage = lazy(() => import("./components/Share/BrandsPage"));
+const Packages = lazy(() => import("./components/Packages/Packages"));
 const Login = lazy(() => import("./components/Login/Login"));
 const Register = lazy(() => import("./components/Register/Register"));
 const Products = lazy(() => import("./components/Products/Products"));
@@ -34,6 +39,11 @@ const router = createBrowserRouter([
       { path: "product-details/:id", element: <ProductDetails /> },
       { path: "product-details", element: <ProductDetails /> },
       { path: "advertising", element: <Advertising /> },
+      { path: "share-ad", element: <ShareAdds /> },
+      { path: "share-car", element: <CarPages /> },
+      { path: "share-car-details", element: <ModelsPage /> },
+      { path: "share-car-final", element: <BrandsPage /> },
+      { path: "packages", element: <Packages /> },
       { path: "login", element: <Login /> },
       { path: "register", element: <Register /> },
       { path: "products", element: <Products /> },

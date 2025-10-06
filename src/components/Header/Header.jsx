@@ -7,10 +7,11 @@ import logo from "../../assets/logo.png";
 function Header() {
   const [isOpen, setIsOpen] = useState(false);
   const [user, setUser] = useState(null);
-
+  const [showUserMenu, setShowUserMenu] = useState(false);
 
   const toggleMenu = () => setIsOpen(!isOpen);
   const closeMenu = () => setIsOpen(false);
+  const toggleUserMenu = () => setShowUserMenu(!showUserMenu);
 
   // Read user from localStorage on mount and on storage changes
   useEffect(() => {
@@ -29,6 +30,17 @@ function Header() {
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
   }, []);
+
+  // Close user menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (showUserMenu && !e.target.closest('.user-menu-container')) {
+        setShowUserMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showUserMenu]);
 
   const handleLogout = () => {
     try {
@@ -49,16 +61,44 @@ function Header() {
         <div className=" mx-auto flex items-center justify-between px-4 lg:px-10 py-2">
           {/* Right controls */}
           <div className="flex gap-2 md:gap-4 items-center">
+            {/* Post Ad Button */}
+            <Link to="/share-ad">
+              <button className="block px-1 py-2 md:px-6 md:py-3 text-xs md:text-base font-bold transition-all duration-300 bg-primary text-white border-2 border-primary rounded-lg hover:bg-white hover:text-primary">
+                انشر اعلانك
+              </button>
+            </Link>
+
             {user ? (
-              <div className="relative group">
-                <button className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50">
-                  <FiUser className="text-primary" size={18} />
-                  <span className="max-w-28 truncate text-sm">{user.name || 'الحساب'}</span>
+              <div className="relative user-menu-container">
+                <button 
+                  onClick={toggleUserMenu}
+                  className="flex items-center justify-center w-10 h-10 bg-primary text-white font-bold rounded-full hover:bg-primary/90 transition-colors"
+                >
+                  {user.email ? user.email.charAt(0).toUpperCase() : 'A'}
                 </button>
-                <div className="absolute left-0 mt-2 w-40 bg-white border border-gray-200 rounded-lg shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition">
-                  <Link to="/" className="block px-4 py-2 text-sm hover:bg-gray-50">الملف الشخصي</Link>
-                  <button onClick={handleLogout} className="w-full text-right px-4 py-2 text-sm hover:bg-gray-50">تسجيل الخروج</button>
-                </div>
+                {showUserMenu && (
+                  <div className="absolute left-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50 animate-fade-in">
+                    <div className="px-4 py-3 text-sm border-b border-gray-100 text-gray-700 font-medium">
+                      <p className="truncate" title={user.email}>{user.email || 'الحساب'}</p>
+                    </div>
+                    <Link 
+                      to="/" 
+                      className="block px-4 py-2 text-sm hover:bg-gray-50 transition-colors"
+                      onClick={() => setShowUserMenu(false)}
+                    >
+                      الملف الشخصي
+                    </Link>
+                    <button 
+                      onClick={() => {
+                        setShowUserMenu(false);
+                        handleLogout();
+                      }} 
+                      className="w-full text-right px-4 py-2 text-sm hover:bg-gray-50 text-red-600 hover:bg-red-50 transition-colors rounded-b-lg"
+                    >
+                      تسجيل الخروج
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <>
@@ -147,6 +187,13 @@ function Header() {
           </NavLink>
           <Link to="/contact" className="text-white nav-link" onClick={closeMenu} >
             تواصل معنا
+          </Link>
+          
+          {/* Post Ad Button for Mobile */}
+          <Link to="/share-ad" onClick={closeMenu}>
+            <button className="w-full py-3 px-6 text-base font-bold transition-all duration-300 bg-white text-primary border-2 border-white rounded-lg hover:bg-primary hover:text-white">
+              انشر اعلانك
+            </button>
           </Link>
         </div>
       </div>

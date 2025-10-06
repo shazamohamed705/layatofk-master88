@@ -147,11 +147,19 @@ function Home() {
     const [mobileAds, setMobileAds] = useState([]);
     const [adsLoading, setAdsLoading] = useState(true);
     const [adsError, setAdsError] = useState(null);
+    
+    // Dynamic page for commercial ads (can be changed if needed)
+    const [commercialAdsPage, setCommercialAdsPage] = useState(1);
+    const [adsPerPage] = useState(4);
 
-    // Display 4 ads from each category
-    const displayedRegularAds = useMemo(() => regularAds.slice(4,8), [regularAds]);
-    const displayedCommercialAds = useMemo(() => commercialAds.slice(0, 4), [commercialAds]);
-    const displayedMobileAds = useMemo(() => mobileAds.slice(0, 4), [mobileAds]);
+    // Display limited ads from each category
+    const regularAdsStart = 0;
+    const regularAdsEnd = 4;
+    const mobileAdsCount = 4;
+    
+    const displayedRegularAds = useMemo(() => regularAds.slice(regularAdsStart, regularAdsEnd), [regularAds]);
+    const displayedCommercialAds = useMemo(() => commercialAds.slice(0, adsPerPage), [commercialAds, adsPerPage]);
+    const displayedMobileAds = useMemo(() => mobileAds.slice(0, mobileAdsCount), [mobileAds]);
 
     // Helper: normalize banners payload (accept array or wrapped object)
     const normalizeBanners = (payload) => {
@@ -565,8 +573,16 @@ function Home() {
                 }
                 
                 if (categoryIds.commercial) {
-                    console.log('💼 Fetching commercial ads from category:', categoryIds.commercial);
-                    promises.push(getJson(`/api/adv_by_cat?cat_id=${categoryIds.commercial}`));
+                    console.log(`💼 Fetching commercial ads from /api/ads?page=${commercialAdsPage}`);
+                    promises.push(getJson(`/api/ads?page=${commercialAdsPage}`).then(response => {
+                        // Transform response to match expected format
+                        if (response?.status && response?.ads?.data) {
+                            // Filter only commercial ads
+                            const commercialOnly = response.ads.data.filter(ad => ad.show_on_commercial === 1);
+                            return { status: true, data: commercialOnly };
+                        }
+                        return { status: false, data: [] };
+                    }));
                 } else {
                     promises.push(Promise.resolve({ status: false, data: [] }));
                 }
@@ -616,7 +632,7 @@ function Home() {
         };
 
         fetchAllAds();
-    }, [categoryIds.regular, categoryIds.commercial, categoryIds.mobile]);
+    }, [categoryIds.regular, categoryIds.commercial, categoryIds.mobile, commercialAdsPage]);
 
     // Fetch brands from API based on category (for cars category) - Using POST with cat_id
     const fetchBrands = async (categoryId) => {
@@ -1530,7 +1546,7 @@ function Home() {
                     {/* Header */}
                     <div className="flex justify-between items-center mb-6">
                         <div>
-                            <h2 className="text-2xl font-bold text-gray-800">دراجات نارية
+                            <h2 className="text-2xl font-bold text-gray-800">تسوق المنتجات 
                             </h2>
                             <p className="text-sm text-gray-500">تسوق احدث المنتجات المميزة المضافة جديد</p>
                         </div>
