@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react'
+import React, { useState, useCallback, useMemo, useEffect } from 'react'
 import { IoIosArrowForward } from 'react-icons/io'
 import { MdImage } from 'react-icons/md'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -26,15 +26,29 @@ function CarPages() {
     window.scrollTo({ top: 0, behavior: 'instant' })
   }, [])
 
-  // Validate title contains letters (Arabic or English)
+  // Validate title - exactly 30 characters, no numbers
   const validateTitle = useCallback((value) => {
     if (!value.trim()) {
       return 'يرجى إدخال اسم الإعلان'
     }
+    // Check if title contains numbers
+    const hasNumbers = /[0-9]/.test(value)
+    if (hasNumbers) {
+      return 'اسم الإعلان لا يجب أن يحتوي على أرقام'
+    }
     // Check if title contains at least one letter (Arabic or English)
     const hasLetters = /[a-zA-Zأ-ي]/.test(value)
     if (!hasLetters) {
-      return 'اسم الإعلان يجب أن يحتوي على حروف وليس أرقام فقط'
+      return 'اسم الإعلان يجب أن يحتوي على حروف'
+    }
+    // Check exactly 30 characters
+    const length = value.trim().length
+    if (length !== 30) {
+      if (length < 30) {
+        return `اسم الإعلان يجب أن يكون 30 حرف بالضبط (باقي ${30 - length} حرف)`
+      } else {
+        return `اسم الإعلان يجب أن يكون 30 حرف بالضبط (زيادة ${length - 30} حرف)`
+      }
     }
     return ''
   }, [])
@@ -137,11 +151,43 @@ function CarPages() {
 
   // Check if form is valid - memoized
   const isFormValid = useMemo(() => {
-    const titleValid = formData.title.trim() !== '' && validateTitle(formData.title) === ''
+    const titleValid = formData.title.trim() !== '' && 
+                       validateTitle(formData.title) === '' &&
+                       formData.title.trim().length === 30
     return titleValid && 
            formData.description.trim() !== '' && 
            formData.images.length > 0
   }, [formData, validateTitle])
+  
+  // Save form data to localStorage whenever it changes
+  useEffect(() => {
+    if (formData.title || formData.description || formData.images.length > 0) {
+      const dataToSave = {
+        title: formData.title,
+        description: formData.description,
+        images_count: formData.images.length,
+        categoryId: formData.categoryId
+      }
+      localStorage.setItem('car_page_draft', JSON.stringify(dataToSave))
+    }
+  }, [formData])
+  
+  // Load saved data on mount
+  useEffect(() => {
+    const savedDraft = localStorage.getItem('car_page_draft')
+    if (savedDraft) {
+      try {
+        const parsed = JSON.parse(savedDraft)
+        setFormData(prev => ({
+          ...prev,
+          title: parsed.title || '',
+          description: parsed.description || ''
+        }))
+      } catch (e) {
+        console.error('Error loading saved draft:', e)
+      }
+    }
+  }, [])
 
   // Handle form submission - Save data and navigate to next step
   const handleSubmit = useCallback((e) => {
@@ -201,9 +247,21 @@ function CarPages() {
         // Navigate to car details page (brands, models, etc.)
         navigate('/share-car-details', { state: { adData } })
       } else {
-        // For other categories, show success message
-        alert('✅ تم حفظ البيانات! الخطوة التالية...')
-        // TODO: For non-car categories, either submit directly or navigate to different page
+        // For other categories, skip ModelsPage and save complete data for BrandsPage
+        const completeData = {
+          name: adData.name,
+          description: adData.description,
+          cat_id: adData.cat_id,
+          category_name: adData.category_name,
+          images_count: adData.images.length,
+          dynamicFields: {}, // No dynamic fields for non-car categories
+          timestamp: adData.timestamp
+        }
+        
+        localStorage.setItem('pending_ad_complete', JSON.stringify(completeData))
+        console.log('✅ Complete data saved for non-car category')
+        
+        navigate('/share-car-final', { state: { images: adData.images } })
       }
       
     } catch (error) {
@@ -242,13 +300,23 @@ function CarPages() {
           {/* Ad Title Section */}
           <div className="bg-white rounded-2xl shadow-sm p-6 space-y-4">
             <label className="block text-right">
-              <span className="text-gray-900 text-sm mb-2 block font-semibold">اسم الاعلان</span>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-gray-900 text-sm font-semibold">اسم الاعلان (30 حرف بالضبط)</span>
+                <span className={`text-xs font-bold ${
+                  formData.title.trim().length === 30 ? 'text-green-600' : 
+                  formData.title.trim().length > 30 ? 'text-red-500' : 
+                  'text-orange-500'
+                }`}>
+                  {formData.title.trim().length}/30
+                </span>
+              </div>
               <input
                 type="text"
                 name="title"
                 value={formData.title}
                 onChange={handleInputChange}
-                placeholder={`${categoryName} للبيع`}
+                placeholder={`${categoryName} للبيع (30 حرف بالضبط)`}
+                maxLength={30}
                 className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 transition-all text-right text-gray-900 ${
                   titleError && formData.title ? 'border-red-500' : 'border-gray-200'
                 }`}
@@ -272,9 +340,17 @@ function CarPages() {
                 }}
                 required
               />
+              {/* Show error or warning */}
               {titleError && formData.title && (
-                <p className="text-red-500 text-xs mt-2 text-right">
-                  {titleError}
+                <p className="text-red-500 text-xs mt-2 text-right font-semibold">
+                  ⚠️ {titleError}
+                </p>
+              )}
+              
+              {/* Show success if exactly 30 */}
+              {formData.title && formData.title.trim().length === 30 && !titleError && (
+                <p className="text-green-600 text-xs mt-2 text-right font-semibold">
+                  ✅ تم إدخال العدد المطلوب من الأحرف (30 حرف بالضبط)
                 </p>
               )}
             </label>

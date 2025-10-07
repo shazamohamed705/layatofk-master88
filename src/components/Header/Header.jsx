@@ -3,11 +3,13 @@ import { Link, NavLink } from "react-router-dom";
 import { FaBars, FaTimes } from "react-icons/fa";
 import { FiUser } from "react-icons/fi";
 import logo from "../../assets/logo.png";
+import { useDarkMode } from "../../contexts/DarkModeContext";
 
 function Header() {
   const [isOpen, setIsOpen] = useState(false);
   const [user, setUser] = useState(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const { darkMode } = useDarkMode();
 
   const toggleMenu = () => setIsOpen(!isOpen);
   const closeMenu = () => setIsOpen(false);
@@ -56,7 +58,7 @@ function Header() {
     <>
       {/* Header */}
       <nav
-        className={`fixed top-0 z-50 w-full transition-all duration-300  border-b border-gray-200  bg-white `}
+        className={`fixed top-0 z-50 w-full transition-all duration-300 border-b ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}
       >
         <div className=" mx-auto flex items-center justify-between px-4 lg:px-10 py-2">
           {/* Right controls */}
@@ -82,7 +84,7 @@ function Header() {
                       <p className="truncate" title={user.email}>{user.email || 'الحساب'}</p>
                     </div>
                     <Link 
-                      to="/" 
+                      to="/profile" 
                       className="block px-4 py-2 text-sm hover:bg-gray-50 transition-colors"
                       onClick={() => setShowUserMenu(false)}
                     >
@@ -115,21 +117,24 @@ function Header() {
           <div className="flex items-center gap-5 lg:gap-10">
             {/* Desktop Links */}
             <div className="hidden md:flex gap-4 lg:gap-8 mx-3 lg:mx-9">
-              <NavLink to="/contact" className="nav-link" >
+            <NavLink to="/chat" className={`nav-link ${darkMode ? 'text-gray-200 hover:text-white' : ''}`} >
+                الدردشة
+              </NavLink>
+              <NavLink to="/contact" className={`nav-link ${darkMode ? 'text-gray-200 hover:text-white' : ''}`} >
                 تواصل معنا
               </NavLink>
-              <NavLink to="/advertising" className="nav-link" >
+              <NavLink to="/advertising" className={`nav-link ${darkMode ? 'text-gray-200 hover:text-white' : ''}`} >
                 إعلانات تجاريه
               </NavLink>
-              <NavLink to="/products" className="nav-link" >
-                المنتجات
-              </NavLink>
-              <NavLink to="/categories" className="nav-link" >
+              <NavLink to="/products" className={`nav-link ${darkMode ? 'text-gray-200 hover:text-white' : ''}`} >
+اعلانات               </NavLink>
+              <NavLink to="/categories" className={`nav-link ${darkMode ? 'text-gray-200 hover:text-white' : ''}`} >
                 الفئات
               </NavLink>
-              <NavLink to="/" className="nav-link" >
+              <NavLink to="/" className={`nav-link ${darkMode ? 'text-gray-200 hover:text-white' : ''}`} >
                 الرئيسيه
               </NavLink>
+             
             </div>
 
             {/* Logo */}
@@ -143,7 +148,7 @@ function Header() {
           </div>
 
           {/* Mobile Menu Icon */}
-          <button className="md:hidden text-2xl" onClick={toggleMenu} aria-label="Open menu">
+          <button className={`md:hidden text-2xl ${darkMode ? 'text-white' : 'text-gray-800'}`} onClick={toggleMenu} aria-label="Open menu">
             <FaBars />
           </button>
         </div>

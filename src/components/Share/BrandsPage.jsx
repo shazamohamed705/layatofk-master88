@@ -10,7 +10,7 @@ function BrandsPage() {
   const [areas, setAreas] = useState([])
   const [loading, setLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [hasActiveSubscription, setHasActiveSubscription] = useState(false)
+  const [activeSubscriptions, setActiveSubscriptions] = useState([])
   const [checkingSubscription, setCheckingSubscription] = useState(true)
   
   const [formData, setFormData] = useState({
@@ -24,14 +24,25 @@ function BrandsPage() {
 
   // Get dynamic ad type from completeData - Memoized for performance
   const adType = useMemo(() => {
-    if (!completeData?.dynamicFields) return null
+    // For regular ads, get type from category
+    // Regular categories (سيارات, عقارات, etc.) use type 0 or 2
+    if (completeData?.cat_id) {
+      const categoryId = parseInt(completeData.cat_id)
+      // You can check specific category IDs here if needed
+      // For now, assume regular categories use type 0
+      return '0'
+    }
     
-    // Find the first non-array value as type (typically the ad type field)
-    for (const [, fieldValue] of Object.entries(completeData.dynamicFields)) {
-      if (fieldValue && !Array.isArray(fieldValue)) {
-        return fieldValue
+    // For special/featured ads, get type from dynamicFields
+    if (completeData?.dynamicFields) {
+      for (const [fieldId, fieldValue] of Object.entries(completeData.dynamicFields)) {
+        // Look for a field that contains "type" in its ID
+        if (fieldId.includes('type') && fieldValue && !Array.isArray(fieldValue)) {
+          return fieldValue
+        }
       }
     }
+    
     return null
   }, [completeData])
 
@@ -45,30 +56,40 @@ function BrandsPage() {
     try {
       setCheckingSubscription(true)
       
-      // Build body string manually to support arrays (API requires array format)
-      // Send as array even if single value: type[]=144
-      const bodyString = `type[]=${encodeURIComponent(adType)}`
+      console.log('🔍 Checking subscription with type:', adType, 'Type:', typeof adType)
       
-      console.log('🔍 Checking subscription with type:', adType)
+      // Handle multiple types (e.g., "0.2" or "0,2" means type 0 AND type 2)
+      let queryString = ''
+      const adTypeStr = String(adType).trim()
       
-      const response = await postForm('/api/subscription-packages', bodyString)
+      if (adTypeStr.includes('.') || adTypeStr.includes(',')) {
+        const types = adTypeStr.split(/[.,]/).filter(t => t.trim())
+        queryString = types.map(t => `type[]=${t.trim()}`).join('&')
+        console.log('📤 Multiple types detected:', types, 'Query:', queryString)
+      } else {
+        queryString = `type[]=${adTypeStr}`
+        console.log('📤 Single type detected:', adTypeStr, 'Query:', queryString)
+      }
+      
+      console.log('📡 Full URL:', `/api/subscription-packages?${queryString}`)
+      const response = await getJson(`/api/subscription-packages?${queryString}`)
       console.log('📦 Subscription response:', response)
       
       // Check if user has active subscription
       if (response?.status && response?.data) {
-        // If data is empty or no active subscriptions, user needs to subscribe
-        const hasSubscription = Array.isArray(response.data) && response.data.length > 0
-        setHasActiveSubscription(hasSubscription)
-        console.log(hasSubscription ? '✅ User has active subscription' : '❌ No active subscription')
+        // Save active subscriptions
+        const subscriptions = Array.isArray(response.data) ? response.data : []
+        setActiveSubscriptions(subscriptions)
+        console.log(subscriptions.length > 0 ? `✅ User has ${subscriptions.length} active subscription(s)` : '❌ No active subscription')
       } else {
         // If response fails or invalid type, assume no subscription (show button)
         console.log('⚠️ Could not verify subscription, showing subscribe button')
-        setHasActiveSubscription(false)
+        setActiveSubscriptions([])
       }
     } catch (error) {
       console.error('Error checking subscription:', error)
       // On error, show the subscription button to be safe
-      setHasActiveSubscription(false)
+      setActiveSubscriptions([])
     } finally {
       setCheckingSubscription(false)
     }
@@ -177,9 +198,6 @@ function BrandsPage() {
     setIsSubmitting(true)
 
     try {
-      // Use the memoized adType instead of recalculating
-      const adsInputs = completeData?.dynamicFields || {}
-
       // Create FormData
       const formDataToSend = new FormData()
       formDataToSend.append('name', completeData.name)
@@ -187,10 +205,30 @@ function BrandsPage() {
       formDataToSend.append('cat_id', completeData.cat_id)
       formDataToSend.append('type', adType || '')
       formDataToSend.append('area_id', formData.area_id)
+      formDataToSend.append('place_id', formData.area_id) // Same as area_id
       formDataToSend.append('phone', formData.phone)
       formDataToSend.append('whatsapp', formData.phone) // Same number for both
       formDataToSend.append('price', formData.price)
-      formDataToSend.append('ads_inputs', JSON.stringify(adsInputs))
+      
+      // Add ads_inputs as array elements
+      let inputIndex = 0
+      if (completeData?.dynamicFields) {
+        Object.entries(completeData.dynamicFields).forEach(([fieldId, fieldValue]) => {
+          if (Array.isArray(fieldValue)) {
+            // Handle array values
+            fieldValue.forEach(val => {
+              formDataToSend.append(`ads_inputs[${inputIndex}][input_id]`, fieldId)
+              formDataToSend.append(`ads_inputs[${inputIndex}][input_value]`, val)
+              inputIndex++
+            })
+          } else {
+            // Handle single values
+            formDataToSend.append(`ads_inputs[${inputIndex}][input_id]`, fieldId)
+            formDataToSend.append(`ads_inputs[${inputIndex}][input_value]`, fieldValue)
+            inputIndex++
+          }
+        })
+      }
 
       // Add images if available
       if (location.state?.images) {
@@ -215,6 +253,7 @@ function BrandsPage() {
         // Clean up all saved data
         localStorage.removeItem('pending_ad_data')
         localStorage.removeItem('pending_ad_complete')
+        localStorage.removeItem('car_page_draft')
         sessionStorage.removeItem('pending_images_count')
         
         // Navigate to success page or ads list
@@ -346,12 +385,80 @@ function BrandsPage() {
               </label>
             </div>
 
-            {/* الاشتراك في باقة - Only show if user doesn't have active subscription */}
-            {!hasActiveSubscription && !checkingSubscription && (
+            {/* Active Subscriptions - Show user's active packages */}
+            {!checkingSubscription && activeSubscriptions.length > 0 && (
+              <div className="bg-white rounded-2xl shadow-sm p-6">
+                <h3 className="text-xl font-bold text-gray-800 mb-6 text-center">الباقات المشترك فيها</h3>
+                <div className="grid grid-cols-1 gap-6">
+                  {activeSubscriptions.map((subscription) => {
+                    const pkg = subscription.package
+                    return (
+                      <div
+                        key={subscription.id}
+                        className="bg-white hover:shadow-2xl rounded-2xl shadow-lg p-6 border-2 transition-all duration-500 hover:-translate-y-2 hover:scale-105"
+                        style={{ 
+                          borderColor: '#00D9A5'
+                        }}
+                      >
+                        {/* Package Image - Dynamic from API */}
+                        {(pkg?.img || pkg?.image) && (
+                          <div className="w-20 h-20 mx-auto mb-4 flex items-center justify-center">
+                            <img 
+                              src={pkg.img || (pkg.image?.startsWith('http') ? pkg.image : `https://lay6ofk.com/uploads/packages/${pkg.image}`)}
+                              alt={pkg.name_ar || pkg.name_en}
+                              className="max-w-full max-h-full object-contain"
+                              onError={(e) => {
+                                e.target.style.display = 'none'
+                              }}
+                            />
+                          </div>
+                        )}
+
+                        {/* Package Name */}
+                        <h3 className="text-xl font-bold text-center mb-2 text-gray-900">
+                          {pkg?.name_ar || pkg?.name_en}
+                        </h3>
+
+                        {/* Package Info */}
+                        <div className="bg-gray-50 rounded-xl p-4 mb-4 space-y-2 transition-colors">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-gray-600">عدد الإعلانات:</span>
+                            <span className="font-bold text-gray-900">{pkg?.adv_num} إعلان</span>
+                          </div>
+                          
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-gray-600">المدة:</span>
+                            <span className="font-bold text-gray-900">{pkg?.period} يوم</span>
+                          </div>
+                        </div>
+
+                        {/* Details */}
+                        {pkg?.details && (
+                          <p className="text-center text-sm mb-4 rounded-lg p-3 bg-blue-50 text-gray-600">
+                            {pkg.details}
+                          </p>
+                        )}
+
+                        {/* Price */}
+                        <div className="text-center mb-4 py-3">
+                          <span className="text-5xl font-bold text-cyan-400">
+                            {pkg?.price}
+                          </span>
+                          <span className="text-base mr-2 text-cyan-400">شهرياً</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Subscribe Button - Show if no active subscription */}
+            {!checkingSubscription && activeSubscriptions.length === 0 && (
               <div className="bg-white rounded-2xl shadow-sm p-6">
                 <button
                   type="button"
-                  onClick={() => navigate('/packages', { state: { adType } })}
+                  onClick={() => navigate('/packages')}
                   className="w-full py-3 rounded-xl font-bold text-lg transition-all duration-300 hover:scale-[1.02] shadow-md hover:shadow-lg"
                   style={{ 
                     backgroundColor: '#00D9A5',
@@ -366,18 +473,6 @@ function BrandsPage() {
                 >
                   الاشتراك في باقة
                 </button>
-              </div>
-            )}
-
-            {/* Show subscription status badge */}
-            {hasActiveSubscription && !checkingSubscription && (
-              <div className="bg-green-50 border-2 border-green-500 rounded-2xl shadow-sm p-6">
-                <div className="flex items-center justify-center gap-2">
-                  <span className="text-green-600 text-lg">✅</span>
-                  <p className="text-green-700 font-semibold text-center">
-                    لديك اشتراك نشط في هذه الفئة
-                  </p>
-                </div>
               </div>
             )}
 

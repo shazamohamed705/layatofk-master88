@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { IoIosArrowForward } from 'react-icons/io'
-import { useNavigate, useLocation } from 'react-router-dom'
 import { postForm, getJson } from '../../api'
 import { useDarkMode } from '../../contexts/DarkModeContext'
 
-function Packages() {
+function AllPackages() {
   const navigate = useNavigate()
-  const location = useLocation()
   const { darkMode } = useDarkMode()
   const [packages, setPackages] = useState([])
   const [loading, setLoading] = useState(true)
@@ -14,14 +13,33 @@ function Packages() {
   const [checkingWallet, setCheckingWallet] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [selectedPackage, setSelectedPackage] = useState(null)
-  
-  // Get package type from location state
-  const packageType = location.state?.packageType || null
+
+  // Fetch regular packages from API - type 0 and 2
+  const fetchPackages = useCallback(async () => {
+    try {
+      setLoading(true)
+      console.log('📦 Fetching regular packages (type 0 & 2)...')
+      
+      // Send both types for regular ads
+      const response = await postForm('/api/packages', 'type[]=0&type[]=2')
+      console.log('📦 Packages response:', response)
+      
+      if (response?.status && Array.isArray(response.data)) {
+        setPackages(response.data)
+        console.log('✅ Loaded', response.data.length, 'regular packages')
+      } else {
+        console.warn('⚠️ Failed to load packages:', response?.msg)
+      }
+    } catch (error) {
+      console.error('❌ Error fetching packages:', error)
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
   // Fetch wallet balance
   const fetchWalletBalance = useCallback(async () => {
     try {
-      // Get user ID from localStorage
       let userId = null
       try {
         const userData = localStorage.getItem('user')
@@ -36,7 +54,7 @@ function Packages() {
       if (!userId) return
       
       const bodyString = `user_id=${userId}`
-      const response = await postForm('/api/wallet-amount-users-wallets', bodyString)
+      const response = await postForm('/api/wallet-amount-users-wallets', bodyString, { timeoutMs: 15000 })
       
       if (response?.status && response?.amount !== undefined) {
         setWalletBalance(response.amount)
@@ -47,9 +65,9 @@ function Packages() {
     }
   }, [])
 
-  // Scroll to top on mount
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' })
+    fetchPackages()
     fetchWalletBalance()
     
     // Check if returning from online payment
@@ -75,53 +93,9 @@ function Packages() {
       // Clean URL
       window.history.replaceState({}, '', window.location.pathname)
     }
-  }, [fetchWalletBalance])
+  }, [fetchPackages, fetchWalletBalance])
 
-  // Fetch packages from API - Memoized with useCallback - Using POST method
-  const fetchPackages = useCallback(async () => {
-    try {
-      setLoading(true)
-      
-      let bodyString = ''
-      
-      // If packageType is provided, filter by it
-      if (packageType) {
-        bodyString = `type[]=${encodeURIComponent(packageType.type)}`
-        console.log('📦 Fetching packages for type:', packageType.name_ar, `(type: ${packageType.type})`)
-      } else {
-        // Try to get all packages
-        console.log('📦 Fetching all packages...')
-      }
-      
-      let response = await postForm('/api/packages', bodyString)
-      console.log('📦 Packages response:', response)
-      
-      // If empty request fails, API might require type[] parameter
-      if (!response?.status && !packageType) {
-        console.log('⚠️ Empty request failed, trying with all types...')
-        // Try with all common types: 0, 1, 2, 4
-        response = await postForm('/api/packages', 'type[]=0&type[]=1&type[]=2&type[]=4')
-        console.log('📦 Packages response (with all types):', response)
-      }
-      
-      if (response?.status && Array.isArray(response.data)) {
-        setPackages(response.data)
-        console.log('✅ Loaded', response.data.length, 'packages')
-      } else {
-        console.warn('⚠️ Failed to fetch packages:', response?.msg || 'Unknown error')
-      }
-    } catch (error) {
-      console.error('❌ Error fetching packages:', error)
-    } finally {
-      setLoading(false)
-    }
-  }, [packageType])
-
-  // Fetch packages when component mounts or adType changes
-  useEffect(() => {
-    fetchPackages()
-  }, [fetchPackages])
-
+  // Handle subscribe to package
   const handleSubscribe = async (pkg) => {
     console.log('🎯 Attempting to subscribe to package:', pkg.id, pkg.name)
     
@@ -130,7 +104,7 @@ function Packages() {
     try {
       // 1. Check for active subscription of same type
       console.log('🔍 Checking for active subscription...')
-      const packageType = pkg.type !== undefined ? pkg.type : 0
+      const packageType = pkg.type || 0
       
       try {
         const subscriptionCheck = await getJson(`/api/subscription-packages?type[]=${packageType}`)
@@ -212,9 +186,9 @@ function Packages() {
         console.error('Error parsing user data:', e)
       }
       
-      // Get package type from pkg object or use default
-      const pkgType = selectedPackage.type !== undefined ? selectedPackage.type : 0
-      const requestBody = `package_id=${selectedPackage.id}&type=${pkgType}&payment_method=${method}${userId ? `&user_id=${userId}` : ''}`
+      // Regular packages use type 0 or 2
+      const packageType = selectedPackage.type || 0
+      const requestBody = `package_id=${selectedPackage.id}&type=${packageType}&payment_method=${method}${userId ? `&user_id=${userId}` : ''}`
       console.log('📤 Sending subscription request:', requestBody)
       
       const subscribeResponse = await postForm('/api/subscription-packages', requestBody)
@@ -253,10 +227,22 @@ function Packages() {
     }
   }
 
+  if (loading) {
+    return (
+      <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gradient-to-b from-gray-50 to-white'} flex items-center justify-center transition-colors duration-300`}>
+        <div className="flex flex-col items-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2" style={{ borderColor: '#0F005B' }}></div>
+          <p className={`mt-4 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>جاري تحميل أنواع الباقات...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gradient-to-b from-gray-50 to-white'} py-6 transition-colors duration-300`} dir="rtl">
-      {/* Main Content */}
-      <main className="max-w-2xl mx-auto px-4">
+      {/* Container */}
+      <div className="max-w-4xl mx-auto px-4">
+        
         {/* Page Title with Back Button */}
         <div className="flex items-center gap-4 mb-6">
           <button
@@ -267,20 +253,17 @@ function Packages() {
             <IoIosArrowForward className={`text-2xl ${darkMode ? 'text-gray-300' : 'text-gray-700'}`} />
           </button>
           <h1 className={`text-2xl md:text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-            {packageType ? `باقات ${packageType.name_ar}` : 'الباقات'}
+            الباقات العادية
           </h1>
         </div>
-        
-        {loading ? (
-          <div className="flex flex-col justify-center items-center min-h-[500px]">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 mb-4" style={{ borderColor: '#0F005B' }}></div>
-            <p className={darkMode ? 'text-gray-400' : 'text-gray-600'}>جاري تحميل الباقات...</p>
-          </div>
-        ) : packages.length === 0 ? (
+
+        {/* No data */}
+        {packages.length === 0 ? (
           <div className="text-center py-12">
             <p className={`text-lg ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>لا توجد باقات متاحة حاليًا</p>
           </div>
         ) : (
+          /* Packages Grid */
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {packages.map((pkg, index) => (
               <div
@@ -322,7 +305,7 @@ function Packages() {
                   {/* Period */}
                   <div className="flex items-center justify-between text-sm">
                     <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>المدة:</span>
-                    <span className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{pkg.period} {pkg.period === 1 ? 'يوم' : 'يوم'}</span>
+                    <span className={`font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{pkg.period} يوم</span>
                   </div>
                 </div>
 
@@ -338,25 +321,23 @@ function Packages() {
                   <span className="text-4xl font-bold" style={{ color: '#00D9A5' }}>
                     {pkg.price}
                   </span>
-                  <span className="text-gray-600 text-sm mr-2">شهرياً</span>
+                  <span className={`text-sm mr-2 ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>شهرياً</span>
                 </div>
 
-                {/* Subscribe Button - Green color */}
+                {/* Subscribe Button - Dark navy color */}
                 <button
                   onClick={() => handleSubscribe(pkg)}
                   disabled={checkingWallet}
                   className="w-full py-3 rounded-xl font-bold text-white transition-all duration-300 hover:scale-[1.02] shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{ backgroundColor: '#00D9A5' }}
+                  style={{ backgroundColor: '#0F005B' }}
                   onMouseEnter={(e) => {
                     if (!checkingWallet) {
-                      e.currentTarget.style.backgroundColor = '#00C292'
-                      e.currentTarget.style.filter = 'brightness(1)'
+                      e.currentTarget.style.backgroundColor = '#0A0040'
                     }
                   }}
                   onMouseLeave={(e) => {
                     if (!checkingWallet) {
-                      e.currentTarget.style.backgroundColor = '#00D9A5'
-                      e.currentTarget.style.filter = 'brightness(1)'
+                      e.currentTarget.style.backgroundColor = '#0F005B'
                     }
                   }}
                 >
@@ -373,7 +354,7 @@ function Packages() {
             ))}
           </div>
         )}
-      </main>
+      </div>
 
       {/* Payment Method Modal */}
       {showPaymentModal && selectedPackage && (
@@ -395,7 +376,7 @@ function Packages() {
               </div>
               <div className="flex items-center justify-between mb-2">
                 <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>السعر:</span>
-                <span className="font-bold text-[#00D9A5]">{selectedPackage.price} ريال</span>
+                <span className="font-bold text-[#00D9A5]">{selectedPackage.price} شهريا </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className={darkMode ? 'text-gray-400' : 'text-gray-600'}>الرصيد المتبقي:</span>
@@ -458,4 +439,5 @@ function Packages() {
   )
 }
 
-export default Packages
+export default AllPackages
+

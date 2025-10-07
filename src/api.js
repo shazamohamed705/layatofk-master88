@@ -150,4 +150,54 @@ export async function postMultipart(path, formData, options = {}) {
   }
 }
 
+// POST JSON data
+export async function postJson(path, jsonData, options = {}) {
+  const controller = new AbortController()
+  const timeoutMs = options.timeoutMs ?? 20000
+  const id = setTimeout(() => controller.abort(), timeoutMs)
+
+  const apiBase = process.env.NODE_ENV === 'development' ? '' : 'https://lay6ofk.com'
+  const url = `${apiBase}${path}`
+
+  // Get token for Authorization header
+  let token = null
+  try {
+    token = localStorage.getItem('api_token')
+    if (token) {
+      token = token.trim()
+    }
+  } catch (e) {
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('[API] Error accessing token:', e.message)
+    }
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Accept-Language': 'ar',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+        ...(options.headers || {}),
+      },
+      body: JSON.stringify(jsonData),
+      signal: controller.signal,
+    })
+
+    const isJson = (response.headers.get('content-type') || '').includes('application/json')
+    const payload = isJson ? await response.json() : await response.text()
+
+    if (!response.ok) {
+      const serverMsg = typeof payload === 'string' ? payload : (payload?.msg || payload?.message || '')
+      throw new Error(serverMsg || `Request failed with status ${response.status}`)
+    }
+
+    return payload
+  } finally {
+    clearTimeout(id)
+  }
+}
+
 

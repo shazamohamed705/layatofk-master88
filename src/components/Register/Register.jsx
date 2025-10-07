@@ -1,10 +1,11 @@
 import React, { useState } from 'react'
 import { BsEye } from 'react-icons/bs'
 import { FiEyeOff } from 'react-icons/fi'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import loginImage from '../../assets/login photo.png'
 import { postForm } from '../../api'
 function Register() {
+    const navigate = useNavigate()
     const [showPassword, setShowPassword] = useState(false)
     const [showConfirmPassword, setShowConfirmPassword] = useState(false)
     const [formData, setFormData] = useState({
@@ -69,12 +70,11 @@ function Register() {
                     detail: { user: data.user, token } 
                 }))
                 
-                setSuccessMessage('تم إنشاء الحساب بنجاح')
-                // Optional: redirect after short delay
+                setSuccessMessage('تم إنشاء الحساب بنجاح! جاري التوجيه لصفحة تسجيل الدخول...')
+                // Redirect to login page after short delay
                 setTimeout(() => {
-                    // If using react-router-dom v6 navigate would be better; fallback to location
-                    window.location.href = '/'
-                }, 800)
+                    navigate('/login')
+                }, 1500)
             } else {
                 let details = ''
                 if (data?.errors && typeof data.errors === 'object') {
