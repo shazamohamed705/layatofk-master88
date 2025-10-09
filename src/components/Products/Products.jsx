@@ -216,16 +216,29 @@ function Products() {
                 // Use the advanced image extraction logic
                 const fullImageUrl = getImageUrl(item)
                 
+                // Extract ad type from adv_inputs (نوع الاعلان)
+                const adTypeInput = item.adv_inputs?.find(input => 
+                  input.category_item?.name_ar === 'نوع الاعلان' || 
+                  input.category_item?.name_en === 'Choose type'
+                )
+                const adType = adTypeInput?.input_value || null
+                
+                // Extract ad type icon from category_item
+                const adTypeIcon = adTypeInput?.category_item?.icon || null
+                
                 return {
                   id: item.id,
                   title: item.title || item.name || 'منتج بدون عنوان',
+                  description: item.description || null,
                   price: `د.ك ${item.price || item.price_value || 0}`,
-                  location: item.location || item.area || 'الكويت',
-                  time: item.created_at || item.time || 'منذ ساعة',
+                  location: item.location || item.area || item.place || null,
                   category: item.category_id || item.cat_id,
                   image: fullImageUrl || phone, // Fallback to phone image
-                  condition: item.condition || item.type || 'غير محدد',
-                  img: fullImageUrl || phone // Ensure fallback image
+                  condition: item.condition || item.type || null,
+                  img: fullImageUrl || phone, // Ensure fallback image
+                  views: item.views || 0, // Add views count
+                  adType: adType, // Add ad type
+                  adTypeIcon: adTypeIcon // Add ad type icon
                 }
               } catch (error) {
                 console.error('Error transforming product item:', error, item)
@@ -405,14 +418,38 @@ function Products() {
                     }}
                     style={{ opacity: 0.7 }}
                   />
-                  {/* Condition Badge */}
-                {product.condition && (
-                  <div className="absolute top-2 right-2">
-                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${product.condition === 'جديد' ? 'bg-green-500 text-white' : 'bg-orange-500 text-white'}`}>
-                      {product.condition}
-                    </span>
-                  </div>
-                )}
+                  
+                  {/* Ad Type Badge with Icon */}
+                  {product.adType && product.adType.trim() && product.adType !== 'غير محدد' && (
+                    <div className="absolute top-2 right-2">
+                      <span className="bg-primary text-white px-2 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+                        {product.adTypeIcon && (
+                          <img 
+                            src={product.adTypeIcon} 
+                            alt={product.adType}
+                            className="w-3 h-3"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                            }}
+                          />
+                        )}
+                        {product.adType}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Views Count Badge */}
+                  {product.views > 0 && (
+                    <div className="absolute top-2 left-2">
+                      <span className="bg-black/60 text-white px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        {product.views}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Product Info */}
@@ -427,9 +464,23 @@ function Products() {
                     {product.title}
                   </h3>
 
+                  {/* Description */}
+                  {product.description && product.description.trim() && product.description !== 'غير محدد' && product.description !== 'undefined' && (
+                    <p className="text-xs text-gray-600 mb-2 line-clamp-2 leading-relaxed">
+                      {product.description}
+                    </p>
+                  )}
+
                   <div className="text-xs text-gray-500 space-y-1">
-                    {product.location && <p>{product.location}</p>}
-                    {product.time && <p>{product.time}</p>}
+                    {product.location && product.location.trim() && product.location !== 'غير محدد' && product.location !== 'undefined' && (
+                      <p className="flex items-center gap-1">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        {product.location}
+                      </p>
+                    )}
                   </div>
                 </div>
               </article>

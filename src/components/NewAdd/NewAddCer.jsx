@@ -3,10 +3,25 @@ import { IoIosArrowForward } from 'react-icons/io'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { getJson, postForm, postMultipart } from '../../api'
 
-function BrandsPage() {
+function NewAddCer() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { formData: stepData, selectedCategory, previewImages } = location.state || {}
   
+  const [loading, setLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [activeSubscriptions, setActiveSubscriptions] = useState([])
+  const [checkingSubscription, setCheckingSubscription] = useState(true)
+  const [walletBalance, setWalletBalance] = useState(0)
+  const [checkingWallet, setCheckingWallet] = useState(true)
+  
+  const [formData, setFormData] = useState({
+    area_id: '',
+    phone: ''
+  })
+  
+  const [phoneError, setPhoneError] = useState('')
+
   // Helper function to get user-specific localStorage key
   const getUserStorageKey = useCallback((baseKey) => {
     try {
@@ -21,126 +36,120 @@ function BrandsPage() {
     }
     return baseKey // Fallback to base key if no user
   }, [])
-  
-  const [areas, setAreas] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [activeSubscriptions, setActiveSubscriptions] = useState([])
-  const [checkingSubscription, setCheckingSubscription] = useState(true)
-  
-  const [formData, setFormData] = useState({
-    area_id: '',
-    phone: '',
-    price: ''
-  })
-  
-  const [phoneError, setPhoneError] = useState('')
-  const [completeData, setCompleteData] = useState(null)
 
-  // Get dynamic ad type from completeData - Memoized for performance
-  const adType = useMemo(() => {
-    // For regular ads, get type from category
-    // Regular categories (سيارات, عقارات, etc.) use type 0 or 2
-    if (completeData?.cat_id) {
-      const categoryId = parseInt(completeData.cat_id)
-      // You can check specific category IDs here if needed
-      // For now, assume regular categories use type 0
-      return '0'
-    }
-    
-    // For special/featured ads, get type from dynamicFields
-    if (completeData?.dynamicFields) {
-      for (const [fieldId, fieldValue] of Object.entries(completeData.dynamicFields)) {
-        // Look for a field that contains "type" in its ID
-        if (fieldId.includes('type') && fieldValue && !Array.isArray(fieldValue)) {
-          return fieldValue
-        }
-      }
-    }
-    
-    return null
-  }, [completeData])
-
-  // Check user subscription status - Using POST method
-  const checkSubscription = useCallback(async () => {
-    if (!adType) {
-      setCheckingSubscription(false)
+  // Redirect if no data
+  useEffect(() => {
+    if (!stepData || !selectedCategory) {
+      navigate('/new-add-cat')
       return
     }
+  }, [stepData, selectedCategory, navigate])
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' })
+  }, [])
+
+  // Ad type for commercial ads - Type 1.4 (commercial ads need both types 1 and 4)
+  const adType = '1.4'
+
+  // Check user subscription status
+  const checkSubscription = useCallback(async () => {
     try {
       setCheckingSubscription(true)
       
-      console.log('🔍 Checking subscription with type:', adType, 'Type:', typeof adType)
+      console.log('🔍 Checking subscription for commercial ad...')
       
-      // Handle multiple types (e.g., "0.2" or "0,2" means type 0 AND type 2)
+      // Build query string for subscription check - type[] is an array parameter
+      // Supports single type: "1" -> type[]=1
+      // Or multiple types: "1,4" or "1.4" -> type[]=1&type[]=4
       let queryString = ''
       const adTypeStr = String(adType).trim()
       
       if (adTypeStr.includes('.') || adTypeStr.includes(',')) {
+        // Multiple types
         const types = adTypeStr.split(/[.,]/).filter(t => t.trim())
         queryString = types.map(t => `type[]=${t.trim()}`).join('&')
         console.log('📤 Multiple types detected:', types, 'Query:', queryString)
       } else {
+        // Single type
         queryString = `type[]=${adTypeStr}`
         console.log('📤 Single type detected:', adTypeStr, 'Query:', queryString)
       }
       
       console.log('📡 Full URL:', `/api/subscription-packages?${queryString}`)
+      
       const response = await getJson(`/api/subscription-packages?${queryString}`)
       console.log('📦 Subscription response:', response)
       
-      // Check if user has active subscription
       if (response?.status && response?.data) {
-        // Save active subscriptions
         const subscriptions = Array.isArray(response.data) ? response.data : []
         setActiveSubscriptions(subscriptions)
         console.log(subscriptions.length > 0 ? `✅ User has ${subscriptions.length} active subscription(s)` : '❌ No active subscription')
       } else {
-        // If response fails or invalid type, assume no subscription (show button)
-        console.log('⚠️ Could not verify subscription, showing subscribe button')
+        console.log('⚠️ Could not verify subscription')
         setActiveSubscriptions([])
       }
     } catch (error) {
       console.error('Error checking subscription:', error)
-      // On error, show the subscription button to be safe
       setActiveSubscriptions([])
     } finally {
       setCheckingSubscription(false)
     }
   }, [adType])
 
-  // Load saved data (user-specific)
-  useEffect(() => {
-    const storageKey = getUserStorageKey('pending_ad_complete')
-    const savedData = localStorage.getItem(storageKey)
-    if (savedData) {
-      const parsed = JSON.parse(savedData)
-      setCompleteData(parsed)
-      console.log('✅ Loaded saved data (user-specific):', parsed)
-    } else {
-      alert('لا توجد بيانات محفوظة')
-      navigate('/share-ad')
-    }
-    
-    // Fetch areas
-    fetchAreas()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [getUserStorageKey])
+  // Check wallet balance
+  const checkWalletBalance = useCallback(async () => {
+    try {
+      setCheckingWallet(true)
+      
+      // Get user ID
+      let userId = null
+      try {
+        const userData = localStorage.getItem('user')
+        if (userData) {
+          const parsed = JSON.parse(userData)
+          userId = parsed.id
+        }
+      } catch (e) {
+        console.error('Error parsing user data:', e)
+      }
 
-  // Check subscription when adType is available
-  useEffect(() => {
-    if (adType) {
-      checkSubscription()
-    }
-  }, [adType, checkSubscription])
+      if (!userId) {
+        console.log('⚠️ No user ID found')
+        setWalletBalance(0)
+        setCheckingWallet(false)
+        return
+      }
 
-  // Fetch areas from API - Memoized with useCallback
+      // Send user_id in the body
+      const bodyString = `user_id=${userId}`
+      const response = await postForm('/api/wallet-amount-users-wallets', bodyString)
+      console.log('💰 Wallet response:', response)
+      
+      if (response?.status) {
+        const displayAmount = response?.amount !== undefined ? response.amount : 
+                            (response?.wallet_amount !== undefined ? response.wallet_amount : 
+                            (response?.balance !== undefined ? response.balance : 0))
+        const balance = parseFloat(displayAmount) || 0
+        setWalletBalance(balance)
+        console.log('💰 Wallet balance:', balance, 'KD')
+      } else {
+        setWalletBalance(0)
+      }
+    } catch (error) {
+      console.error('Error checking wallet:', error)
+      setWalletBalance(0)
+    } finally {
+      setCheckingWallet(false)
+    }
+  }, [])
+
+  // Fetch areas from API
+  const [areas, setAreas] = useState([])
   const fetchAreas = useCallback(async () => {
     try {
       setLoading(true)
       const response = await getJson('/api/areas')
-      console.log('📍 Areas response:', response)
       
       if (response?.status && Array.isArray(response.data)) {
         setAreas(response.data)
@@ -153,7 +162,29 @@ function BrandsPage() {
     }
   }, [])
 
-  // Validate phone number - Memoized with useCallback
+  useEffect(() => {
+    checkSubscription()
+    checkWalletBalance()
+    fetchAreas()
+  }, [checkSubscription, checkWalletBalance, fetchAreas])
+
+  // Re-check subscription when user returns to page
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('🔄 Page is visible again, re-checking subscription...')
+        checkSubscription()
+        checkWalletBalance()
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [checkSubscription, checkWalletBalance])
+
+  // Validate phone number
   const validatePhone = useCallback((phone) => {
     if (!phone) return 'يرجى إدخال رقم الهاتف'
     if (!phone.startsWith('05')) return 'رقم الهاتف يجب أن يبدأ بـ 05'
@@ -161,79 +192,19 @@ function BrandsPage() {
     return ''
   }, [])
 
-  // Helper function to get actual value from ID
-  const getActualValueFromId = useCallback((fieldId, valueId, completeData) => {
-    // If it's already a string (not an ID), return as is
-    if (typeof valueId === 'string' && isNaN(valueId)) {
-      return valueId
-    }
-    
-    // Try to find the component name from the saved category components
-    if (completeData?.categoryComponents) {
-      const field = completeData.categoryComponents.find(f => f.id === parseInt(fieldId))
-      if (field?.components) {
-        const component = field.components.find(c => c.id === parseInt(valueId))
-        if (component?.name_ar) {
-          console.log(`🔄 Mapped ${fieldId}:${valueId} -> ${component.name_ar}`)
-          return component.name_ar
-        }
-      }
-    }
-    
-    // Try to get from brands if it's a brand field (ID: 56)
-    if (fieldId === '56' && completeData?.brands) {
-      const brand = completeData.brands.find(b => b.id === parseInt(valueId))
-      if (brand?.name_ar || brand?.name) {
-        console.log(`🔄 Mapped brand ${valueId} -> ${brand.name_ar || brand.name}`)
-        return brand.name_ar || brand.name
-      }
-    }
-    
-    // Try to get from models if it's a model field (ID: 57)
-    if (fieldId === '57' && completeData?.models) {
-      const model = completeData.models.find(m => m.id === parseInt(valueId))
-      if (model?.name_ar || model?.name) {
-        console.log(`🔄 Mapped model ${valueId} -> ${model.name_ar || model.name}`)
-        return model.name_ar || model.name
-      }
-    }
-    
-    // Try to get from car types if it's a car type field
-    if (completeData?.carTypes) {
-      const carType = completeData.carTypes.find(ct => ct.id === parseInt(valueId))
-      if (carType?.name_ar || carType?.name) {
-        console.log(`🔄 Mapped car type ${valueId} -> ${carType.name_ar || carType.name}`)
-        return carType.name_ar || carType.name
-      }
-    }
-    
-    console.log(`⚠️ Could not map ${fieldId}:${valueId} to text value`)
-    
-    // Fallback: return the original value
-    return valueId
-  }, [])
-
   // Handle input change
   const handleInputChange = (e) => {
     const { name, value } = e.target
     
-    // For phone, only allow numbers
     if (name === 'phone') {
       if (value === '' || /^\d+$/.test(value)) {
         setFormData(prev => ({ ...prev, [name]: value }))
-        
-        // Validate phone on change
         if (value) {
           const error = validatePhone(value)
           setPhoneError(error)
         } else {
           setPhoneError('')
         }
-      }
-    } else if (name === 'price') {
-      // For price, only allow numbers and decimals
-      if (value === '' || /^\d*\.?\d*$/.test(value)) {
-        setFormData(prev => ({ ...prev, [name]: value }))
       }
     } else {
       setFormData(prev => ({ ...prev, [name]: value }))
@@ -250,90 +221,79 @@ function BrandsPage() {
       return
     }
     
-    // Validate phone
     const phoneValidationError = validatePhone(formData.phone)
     if (phoneValidationError) {
       setPhoneError(phoneValidationError)
       alert(phoneValidationError)
       return
     }
-    
-    if (!formData.price) {
-      alert('يرجى إدخال السعر')
-      return
-    }
 
     setIsSubmitting(true)
 
     try {
+      // Get subscription type from active subscription
+      // The ad type must match the user's subscription type
+      let adTypeToSend = '1' // Default to type 1
+      if (activeSubscriptions.length > 0 && activeSubscriptions[0]?.package?.type !== undefined) {
+        adTypeToSend = String(activeSubscriptions[0].package.type)
+        console.log('🎯 Using subscription type:', adTypeToSend, 'from active subscription')
+      } else {
+        console.log('⚠️ No active subscription found, using default type:', adTypeToSend)
+      }
+
       // Create FormData
-      const formDataToSend = new FormData()
-      formDataToSend.append('name', completeData.name)
-      formDataToSend.append('description', completeData.description)
-      formDataToSend.append('cat_id', completeData.cat_id)
-      formDataToSend.append('type', adType || '')
-      formDataToSend.append('area_id', formData.area_id)
-      formDataToSend.append('place_id', formData.area_id) // Same as area_id
-      formDataToSend.append('phone', formData.phone)
-      formDataToSend.append('whatsapp', formData.phone) // Same number for both
-      formDataToSend.append('price', formData.price)
+      const apiFormData = new FormData()
       
-      // Add ads_inputs as array elements with proper value mapping
-      let inputIndex = 0
-      if (completeData?.dynamicFields) {
-        Object.entries(completeData.dynamicFields).forEach(([fieldId, fieldValue]) => {
-          if (Array.isArray(fieldValue)) {
-            // Handle array values (checkboxes)
-            fieldValue.forEach(val => {
-              // For brand/color fields, we need to get the actual name from the component
-              const actualValue = getActualValueFromId(fieldId, val, completeData)
-              formDataToSend.append(`ads_inputs[${inputIndex}][input_id]`, fieldId)
-              formDataToSend.append(`ads_inputs[${inputIndex}][input_value]`, actualValue)
-              inputIndex++
-            })
-          } else {
-            // Handle single values
-            const actualValue = getActualValueFromId(fieldId, fieldValue, completeData)
-            formDataToSend.append(`ads_inputs[${inputIndex}][input_id]`, fieldId)
-            formDataToSend.append(`ads_inputs[${inputIndex}][input_value]`, actualValue)
-            inputIndex++
-          }
-        })
-      }
-
-      // Add images if available
-      if (location.state?.images) {
-        const images = location.state.images
-        images.forEach((img, index) => {
+      apiFormData.append('name', stepData.title)
+      apiFormData.append('description', stepData.description)
+      apiFormData.append('price', stepData.price)
+      apiFormData.append('whatsapp', stepData.whatsapp)
+      apiFormData.append('cat_id', selectedCategory.id)
+      apiFormData.append('type', adTypeToSend) // Use type from active subscription
+      apiFormData.append('area_id', formData.area_id)
+      apiFormData.append('place_id', formData.area_id)
+      apiFormData.append('phone', formData.phone)
+      
+      // Add images
+      if (previewImages && previewImages.length > 0) {
+        previewImages.forEach((img, index) => {
           if (img.file) {
-            formDataToSend.append(`imgs[${index}]`, img.file)
+            apiFormData.append(`imgs[${index}]`, img.file)
           }
         })
       }
 
-      console.log('📤 Submitting final ad data...')
+      console.log(`📤 Sending commercial ad (type ${adTypeToSend}) to /api/newAdd...`)
+      console.log('Data:', {
+        name: stepData.title,
+        description: stepData.description,
+        price: stepData.price,
+        whatsapp: stepData.whatsapp,
+        cat_id: selectedCategory.id,
+        type: adTypeToSend,
+        area_id: formData.area_id,
+        phone: formData.phone,
+        images_count: previewImages?.length || 0
+      })
 
       // Send to API
-      const response = await postMultipart('/api/newAdv', formDataToSend, { timeoutMs: 30000 })
+      const response = await postMultipart('/api/newAdd', apiFormData, { timeoutMs: 30000 })
       
       console.log('📦 API Response:', response)
 
       if (response?.status) {
-        alert('✅ تم نشر الإعلان بنجاح!')
+        alert('🎉 تم نشر الإعلان بنجاح!')
         
-        // Clean up all saved data (user-specific)
-        const pendingDataKey = getUserStorageKey('pending_ad_data')
-        const completeDataKey = getUserStorageKey('pending_ad_complete')
-        const draftKey = getUserStorageKey('car_page_draft')
-        localStorage.removeItem(pendingDataKey)
-        localStorage.removeItem(completeDataKey)
+        // Clear localStorage (user-specific keys)
+        const draftKey = getUserStorageKey('new_add_draft')
+        const completeKey = getUserStorageKey('new_add_complete')
         localStorage.removeItem(draftKey)
-        sessionStorage.removeItem('pending_images_count')
+        localStorage.removeItem(completeKey)
         
         // Navigate to products page filtered by this category
-        navigate(`/products?cat_id=${completeData.cat_id}`)
+        navigate(`/products?cat_id=${selectedCategory.id}`)
       } else {
-        alert('❌ ' + (response?.msg || 'فشل نشر الإعلان'))
+        alert('❌ ' + (response?.message || response?.msg || 'فشل نشر الإعلان'))
       }
     } catch (error) {
       console.error('❌ Error submitting ad:', error)
@@ -341,6 +301,10 @@ function BrandsPage() {
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  if (!stepData || !selectedCategory) {
+    return null
   }
 
   return (
@@ -356,7 +320,7 @@ function BrandsPage() {
             <IoIosArrowForward className="text-2xl text-gray-700" />
           </button>
           <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
-            {completeData?.category_name || 'سيارات'}
+            {selectedCategory?.name || 'إعلان'}
           </h1>
         </div>
       </div>
@@ -434,31 +398,6 @@ function BrandsPage() {
               </label>
             </div>
 
-            {/* Price */}
-            <div className="bg-white rounded-2xl shadow-sm p-6">
-              <label className="block text-right">
-                <span className="text-gray-900 text-sm mb-2 block font-semibold">
-                  السعر
-                  <span className="text-red-500 mr-1">*</span>
-                </span>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  name="price"
-                  value={formData.price}
-                  onChange={handleInputChange}
-                  placeholder="0.000"
-                  required
-                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 transition-all text-right text-gray-900"
-                  style={{ 
-                    borderColor: formData.price ? '#0F005B' : '#E5E7EB'
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = '#0F005B'}
-                  onBlur={(e) => e.target.style.borderColor = formData.price ? '#0F005B' : '#E5E7EB'}
-                />
-              </label>
-            </div>
-
             {/* Active Subscriptions - Show user's active packages */}
             {!checkingSubscription && activeSubscriptions.length > 0 && (
               <div className="bg-white rounded-2xl shadow-sm p-6">
@@ -474,7 +413,7 @@ function BrandsPage() {
                           borderColor: '#00D9A5'
                         }}
                       >
-                        {/* Package Image - Dynamic from API */}
+                        {/* Package Image */}
                         {(pkg?.img || pkg?.image) && (
                           <div className="w-20 h-20 mx-auto mb-4 flex items-center justify-center">
                             <img 
@@ -494,7 +433,7 @@ function BrandsPage() {
                         </h3>
 
                         {/* Package Info */}
-                        <div className="bg-gray-50 rounded-xl p-4 mb-4 space-y-2 transition-colors">
+                        <div className="bg-gray-50 rounded-xl p-4 mb-4 space-y-2">
                           <div className="flex items-center justify-between text-sm">
                             <span className="text-gray-600">عدد الإعلانات:</span>
                             <span className="font-bold text-gray-900">{pkg?.adv_num} إعلان</span>
@@ -527,26 +466,54 @@ function BrandsPage() {
               </div>
             )}
 
-            {/* Subscribe Button - Show if no active subscription */}
-            {!checkingSubscription && activeSubscriptions.length === 0 && (
+            {/* Subscribe Button - Always visible */}
+            {!checkingSubscription && (
               <div className="bg-white rounded-2xl shadow-sm p-6">
-                <button
-                  type="button"
-                  onClick={() => navigate('/packages')}
-                  className="w-full py-3 rounded-xl font-bold text-lg transition-all duration-300 hover:scale-[1.02] shadow-md hover:shadow-lg"
-                  style={{ 
-                    backgroundColor: '#00D9A5',
-                    color: 'white'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#00C292'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = '#00D9A5'
-                  }}
-                >
-                  الاشتراك في باقة
-                </button>
+                <div className="text-center mb-4">
+                  <p className="text-gray-700 mb-4">
+                    {activeSubscriptions.length > 0 
+                      ? 'يمكنك الاشتراك في المزيد من الباقات التجارية'
+                      : 'لنشر إعلان تجاري، تحتاج إلى الاشتراك في باقة'
+                    }
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/business-packages')}
+                    className="w-full py-3 rounded-xl font-bold text-lg transition-all duration-300 hover:scale-[1.02] shadow-md hover:shadow-lg"
+                    style={{ 
+                      backgroundColor: '#00D9A5',
+                      color: 'white'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = '#00C292'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = '#00D9A5'
+                    }}
+                  >
+                    {activeSubscriptions.length > 0 
+                      ? 'الاشتراك في باقة أخرى'
+                      : 'الاشتراك في باقة تجارية'
+                    }
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Wallet Balance Display */}
+            {!checkingWallet && (
+              <div className="bg-white rounded-2xl shadow-sm p-6">
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-700 font-semibold">رصيد المحفظة:</span>
+                  <span className={`text-xl font-bold ${walletBalance > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {walletBalance.toFixed(3)} د.ك
+                  </span>
+                </div>
+                {walletBalance > 0 && (
+                  <p className="text-sm text-green-600 mt-2 text-center">
+                    ✅ يمكنك الدفع من المحفظة
+                  </p>
+                )}
               </div>
             )}
 
@@ -614,4 +581,4 @@ function BrandsPage() {
   )
 }
 
-export default BrandsPage
+export default NewAddCer

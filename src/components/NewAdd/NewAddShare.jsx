@@ -3,13 +3,13 @@ import { IoIosArrowForward } from 'react-icons/io'
 import { MdImage } from 'react-icons/md'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
-function CarPages() {
+function NewAddShare() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   
   // Get category info from URL params
   const categoryId = searchParams.get('category_id') || ''
-  const categoryName = searchParams.get('category_name') || 'سيارات'
+  const categoryName = searchParams.get('category_name') || 'إعلان'
   
   // Helper function to get user-specific localStorage key
   const getUserStorageKey = useCallback((baseKey) => {
@@ -29,6 +29,8 @@ function CarPages() {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
+    price: '',
+    whatsapp: '',
     images: [],
     categoryId: categoryId
   })
@@ -171,6 +173,8 @@ function CarPages() {
                        formData.title.trim().length === 30
     return titleValid && 
            formData.description.trim() !== '' && 
+           formData.price.trim() !== '' &&
+           formData.whatsapp.trim() !== '' &&
            formData.images.length > 0
   }, [formData, validateTitle])
   
@@ -180,17 +184,20 @@ function CarPages() {
       const dataToSave = {
         title: formData.title,
         description: formData.description,
+        price: formData.price,
+        whatsapp: formData.whatsapp,
         images_count: formData.images.length,
-        categoryId: formData.categoryId
+        categoryId: formData.categoryId,
+        categoryName: categoryName
       }
-      const storageKey = getUserStorageKey('car_page_draft')
+      const storageKey = getUserStorageKey('new_add_draft')
       localStorage.setItem(storageKey, JSON.stringify(dataToSave))
     }
-  }, [formData, getUserStorageKey])
+  }, [formData, categoryName, getUserStorageKey])
   
   // Load saved data on mount (user-specific)
   useEffect(() => {
-    const storageKey = getUserStorageKey('car_page_draft')
+    const storageKey = getUserStorageKey('new_add_draft')
     const savedDraft = localStorage.getItem(storageKey)
     if (savedDraft) {
       try {
@@ -198,7 +205,9 @@ function CarPages() {
         setFormData(prev => ({
           ...prev,
           title: parsed.title || '',
-          description: parsed.description || ''
+          description: parsed.description || '',
+          price: parsed.price || '',
+          whatsapp: parsed.whatsapp || ''
         }))
       } catch (e) {
         console.error('Error loading saved draft:', e)
@@ -224,70 +233,39 @@ function CarPages() {
     }
 
     try {
-      // Save form data to localStorage for later submission
-      const adData = {
+      // Save complete data for final step (user-specific)
+      const completeData = {
         name: formData.title,
         description: formData.description,
+        price: formData.price,
+        whatsapp: formData.whatsapp,
         cat_id: categoryId,
         category_name: categoryName,
-        images: formData.images.map((img, index) => ({
-          file: img,
-          preview: previewImages[index]?.preview
-        })),
+        images_count: formData.images.length,
         timestamp: new Date().toISOString()
       }
-
-      // Store in localStorage (without the actual File objects - we'll handle them separately)
-      const dataToStore = {
-        name: adData.name,
-        description: adData.description,
-        cat_id: adData.cat_id,
-        category_name: adData.category_name,
-        images_count: formData.images.length,
-        timestamp: adData.timestamp
-      }
       
-      const pendingDataKey = getUserStorageKey('pending_ad_data')
-      localStorage.setItem(pendingDataKey, JSON.stringify(dataToStore))
+      const storageKey = getUserStorageKey('new_add_complete')
+      localStorage.setItem(storageKey, JSON.stringify(completeData))
+      console.log('✅ Data saved (user-specific):', completeData)
       
-      // Store images count
-      sessionStorage.setItem('pending_images_count', formData.images.length)
-      
-      console.log('✅ Data saved:', dataToStore)
-      
-      // Check if category is cars (سيارات) - navigate to details page
-      const isCarCategory = categoryName && (
-        categoryName.includes('سيار') || 
-        categoryName.toLowerCase().includes('car')
-      )
-      
-      if (isCarCategory) {
-        // Navigate to car details page (brands, models, etc.)
-        navigate('/share-car-details', { state: { adData } })
-      } else {
-        // For other categories, skip ModelsPage and save complete data for BrandsPage
-        const completeData = {
-          name: adData.name,
-          description: adData.description,
-          cat_id: adData.cat_id,
-          category_name: adData.category_name,
-          images_count: adData.images.length,
-          dynamicFields: {}, // No dynamic fields for non-car categories
-          timestamp: adData.timestamp
-        }
-        
-        const completeDataKey = getUserStorageKey('pending_ad_complete')
-        localStorage.setItem(completeDataKey, JSON.stringify(completeData))
-        console.log('✅ Complete data saved for non-car category (user-specific)')
-        
-        navigate('/share-car-final', { state: { images: adData.images } })
-      }
+      // Navigate to final step with all required data
+      navigate('/new-add-cer', { 
+        state: { 
+          formData: formData,
+          selectedCategory: {
+            id: categoryId,
+            name: categoryName
+          },
+          previewImages: previewImages
+        } 
+      })
       
     } catch (error) {
       console.error('❌ Error saving data:', error)
       alert('حدث خطأ أثناء حفظ البيانات')
     }
-  }, [formData, isFormValid, validateTitle, categoryId, categoryName, previewImages, navigate, getUserStorageKey])
+  }, [formData, isFormValid, validateTitle, categoryId, categoryName, previewImages, navigate])
 
   // Cleanup preview URLs on unmount
   React.useEffect(() => {
@@ -392,6 +370,52 @@ function CarPages() {
                 }}
                 onFocus={(e) => e.target.style.borderColor = '#0F005B'}
                 onBlur={(e) => e.target.style.borderColor = formData.description ? '#0F005B' : '#E5E7EB'}
+                required
+              />
+            </label>
+          </div>
+
+          {/* Price Section */}
+          <div className="bg-white rounded-2xl shadow-sm p-6 space-y-4">
+            <label className="block text-right">
+              <span className="text-gray-900 text-sm mb-2 block font-semibold">السعر (د.ك)</span>
+              <input
+                type="number"
+                name="price"
+                value={formData.price}
+                onChange={handleInputChange}
+                placeholder="أدخل السعر"
+                min="0"
+                step="0.001"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 transition-all text-right text-gray-900"
+                style={{ 
+                  '--tw-ring-color': '#0F005B33',
+                  borderColor: formData.price ? '#0F005B' : ''
+                }}
+                onFocus={(e) => e.target.style.borderColor = '#0F005B'}
+                onBlur={(e) => e.target.style.borderColor = formData.price ? '#0F005B' : '#E5E7EB'}
+                required
+              />
+            </label>
+          </div>
+
+          {/* WhatsApp Section */}
+          <div className="bg-white rounded-2xl shadow-sm p-6 space-y-4">
+            <label className="block text-right">
+              <span className="text-gray-900 text-sm mb-2 block font-semibold">رقم الواتساب</span>
+              <input
+                type="tel"
+                name="whatsapp"
+                value={formData.whatsapp}
+                onChange={handleInputChange}
+                placeholder="مثال: +96512345678"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 transition-all text-right text-gray-900"
+                style={{ 
+                  '--tw-ring-color': '#0F005B33',
+                  borderColor: formData.whatsapp ? '#0F005B' : ''
+                }}
+                onFocus={(e) => e.target.style.borderColor = '#0F005B'}
+                onBlur={(e) => e.target.style.borderColor = formData.whatsapp ? '#0F005B' : '#E5E7EB'}
                 required
               />
             </label>
@@ -507,4 +531,5 @@ function CarPages() {
   )
 }
 
-export default CarPages
+export default NewAddShare
+

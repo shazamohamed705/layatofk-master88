@@ -15,7 +15,8 @@ import mapPlaceholder from "../../assets/mapPlaceholder.png"
 import phone from '../../assets/phone.png'
 import { MdArrowBackIosNew, MdArrowForwardIos } from "react-icons/md";
 import { Link, useParams } from "react-router-dom";
-import { getJson } from "../../api";
+import { getJson, postForm } from "../../api";
+import RatingModal from "../RatingModal/RatingModal";
 
 // Helper function to get image URL from all possible sources (same as Home.jsx)
 const getImageUrl = (item) => {
@@ -177,12 +178,20 @@ const getAdvInputValues = (advInputs, inputId) => {
         .map(item => item.input_value);
 };
 
+// Helper function to check if user is verified using is_verified field
+const isUserVerified = (user) => {
+    if (!user) return false;
+    // Check is_verified field (the correct field from API)
+    return user.is_verified === 1 || user.is_verified === '1' || user.is_verified === true;
+};
+
 function ProductDetails() {
     const { id } = useParams(); // Get product ID from URL
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [advData, setAdvData] = useState(null);
     const [relatedProducts, setRelatedProducts] = useState([]);
+    const [showRatingModal, setShowRatingModal] = useState(false);
 
     // Fetch advertisement details from API
     useEffect(() => {
@@ -231,6 +240,121 @@ function ProductDetails() {
 
         fetchAdvDetails();
     }, [id]);
+
+    // Increase views count every time user opens the advertisement
+    useEffect(() => {
+        if (!id || !advData) return;
+
+        const increaseViews = async () => {
+            try {
+                console.log('📊 Increasing view count for ad:', id);
+                const response = await postForm('/api/increase-views', {
+                    id: id
+                });
+                
+                if (response?.status) {
+                    console.log('✅ View count increased successfully');
+                    
+                    // Update the local view count immediately
+                    setAdvData(prev => ({
+                        ...prev,
+                        views: (prev.views || 0) + 1
+                    }));
+                } else {
+                    console.warn('⚠️ Failed to increase view count:', response);
+                }
+            } catch (err) {
+                console.error('❌ Error increasing view count:', err);
+            }
+        };
+
+        // Small delay to ensure user actually viewed the content
+        const viewTimer = setTimeout(increaseViews, 1000);
+
+        return () => clearTimeout(viewTimer);
+    }, [id, advData]);
+
+    // Check if user returned from WhatsApp/Phone call and show rating modal
+    useEffect(() => {
+        if (!id || !advData) return;
+
+        let userLeftPage = false;
+        let blurTime = null;
+
+        const handleWindowBlur = () => {
+            console.log('👋 Window blurred - User left the page');
+            userLeftPage = true;
+            blurTime = Date.now();
+        };
+
+        const handleWindowFocus = () => {
+            console.log('👁️ Window focused - User returned to the page');
+            
+            // Only process if user actually left the page (blur was triggered)
+            if (!userLeftPage) {
+                console.log('⚠️ User never left - probably just a refresh');
+                return;
+            }
+            
+            const contactTime = sessionStorage.getItem('whatsapp_visit_time');
+            const currentTime = Date.now();
+            
+            console.log('⏰ Contact time:', contactTime);
+            console.log('⏰ Blur time:', blurTime);
+            console.log('⏰ Current time:', currentTime);
+            
+            if (contactTime && blurTime) {
+                const timeDiff = currentTime - parseInt(contactTime);
+                const awayDuration = currentTime - blurTime;
+                
+                console.log('⏰ Time since contact click (seconds):', timeDiff / 1000);
+                console.log('⏰ Time away from page (seconds):', awayDuration / 1000);
+                
+                // Check if:
+                // 1. Contact button was clicked recently (< 5 minutes)
+                // 2. User was away for at least 5 seconds (to ensure real interaction)
+                // 3. Total time since click is reasonable (< 5 minutes)
+                if (timeDiff > 5000 && timeDiff < 300000 && awayDuration > 5000) {
+                    const contactSessionKey = `contact_session_${contactTime}`;
+                    const ratingShownForThisSession = sessionStorage.getItem(contactSessionKey);
+                    
+                    console.log('✅ Should show rating modal:', !ratingShownForThisSession);
+                    console.log('🔑 Contact session key:', contactSessionKey);
+                    
+                    if (!ratingShownForThisSession) {
+                        console.log('🌟 Showing rating modal in 1.5 seconds...');
+                        setTimeout(() => {
+                            setShowRatingModal(true);
+                            sessionStorage.setItem(contactSessionKey, 'true');
+                            sessionStorage.removeItem('whatsapp_visit_time');
+                        }, 1500);
+                    } else {
+                        console.log('⚠️ Rating already shown for this contact session');
+                    }
+                } else if (awayDuration <= 5000) {
+                    console.log('⚠️ Too quick - user was away for less than 5 seconds');
+                } else if (timeDiff <= 5000) {
+                    console.log('⚠️ Contact button was clicked too recently');
+                } else {
+                    console.log('⚠️ Too much time passed (> 5 minutes)');
+                    sessionStorage.removeItem('whatsapp_visit_time');
+                }
+            }
+            
+            // Reset the flag
+            userLeftPage = false;
+            blurTime = null;
+        };
+
+        // Add window focus/blur listeners
+        window.addEventListener('blur', handleWindowBlur);
+        window.addEventListener('focus', handleWindowFocus);
+
+        return () => {
+            window.removeEventListener('blur', handleWindowBlur);
+            window.removeEventListener('focus', handleWindowFocus);
+        };
+    }, [id, advData]);
 
     // Loading state
     if (loading) {
@@ -281,6 +405,15 @@ function ProductDetails() {
     const userName = advData.user?.name || 'مستخدم';
     const userCreatedAt = advData.user?.created_at;
     const memberSince = userCreatedAt ? new Date(userCreatedAt).getFullYear() : '2020';
+    
+    // Debug: Log ALL user data to find verification field
+    // Verification status check
+    console.log('🔍 User verification:', {
+        userName: userName,
+        is_verified: advData.user?.is_verified,
+        suspend: advData.user?.suspend,
+        isVerified: isUserVerified(advData.user)
+    });
 
     // Extract category
     const categoryName = advData.category?.name_ar || advData.category?.name_en || 'غير محدد';
@@ -409,7 +542,19 @@ function ProductDetails() {
                             <h1 className="text-2xl font-bold text-gray-800 mb-2">{advData.name}</h1>
                             <div className="flex items-center justify-between">
                                 <p className="text-3xl font-bold text-primary">د.ك {advData.price?.toLocaleString()}</p>
-                                <p className="text-sm text-gray-500">{formatDate(advData.created_at)}</p>
+                                <div className="text-right">
+                                    <p className="text-sm text-gray-500">{formatDate(advData.created_at)}</p>
+                                    {/* Views Count */}
+                                    {advData.views > 0 && (
+                                        <div className="flex items-center gap-1 mt-1">
+                                            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                            </svg>
+                                            <span className="text-sm text-gray-500 font-medium">{advData.views} مشاهدة</span>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
@@ -473,14 +618,32 @@ function ProductDetails() {
 
                     {/* Sidebar */}
                     <aside className="lg:col-span-1 space-y-6">
+                        {/* Views Count Card */}
+                        {advData.views > 0 && (
+                            <div className="bg-white p-4 rounded-lg shadow-sm border">
+                                <h3 className="font-bold text-gray-700 mb-3">عدد المشاهدات</h3>
+                                <div className="text-center">
+                                    <div className="flex items-center justify-center gap-2 mb-2">
+                                        <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                        </svg>
+                                        <span className="text-2xl font-bold text-primary">{advData.views}</span>
+                                    </div>
+                                    <p className="text-sm text-gray-600">مشاهدة</p>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Publisher Card */}
                         <div className="bg-white p-4 rounded-lg shadow-sm border">
                             <h3 className="font-bold text-gray-700 mb-3">عن الناشر</h3>
                             <div className="">
                                 <div className="flex items-center gap-1">
                                     <p className="text-sm font-medium">{userName}</p>
-                                    {advData.user?.suspend === 0 && (
-                                        <img src={iconchick} alt="icon" className="w-7 h-7" />
+                                    {/* Show verification icon only if user is verified AND not suspended */}
+                                    {isUserVerified(advData.user) && advData.user?.suspend === 0 && (
+                                        <img src={iconchick} alt="موثق" title="حساب موثق" className="w-7 h-7" />
                                     )}
                                 </div>
                                 <p className="text-xs text-gray-500">عضو منذ {memberSince}</p>
@@ -493,6 +656,13 @@ function ProductDetails() {
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="w-full bg-green-500 text-white text-sm rounded-lg py-2 mt-2 flex items-center justify-center gap-2 hover:bg-green-600"
+                                    onClick={() => {
+                                        // Track WhatsApp visit time
+                                        const currentTime = Date.now().toString();
+                                        sessionStorage.setItem('whatsapp_visit_time', currentTime);
+                                        console.log('📱 WhatsApp clicked! Time saved:', currentTime);
+                                        console.log('📱 SessionStorage:', sessionStorage.getItem('whatsapp_visit_time'));
+                                    }}
                                 >
                                     <FaWhatsapp /> واتساب
                                 </a>
@@ -503,6 +673,13 @@ function ProductDetails() {
                                 <a 
                                     href={`tel:${advData.phone}`}
                                     className="w-full bg-blue-500 text-white text-sm rounded-lg py-2 mt-2 flex items-center justify-center gap-2 hover:bg-blue-600"
+                                    onClick={() => {
+                                        // Track phone call time
+                                        const currentTime = Date.now().toString();
+                                        sessionStorage.setItem('whatsapp_visit_time', currentTime);
+                                        console.log('📞 Phone clicked! Time saved:', currentTime);
+                                        console.log('📞 SessionStorage:', sessionStorage.getItem('whatsapp_visit_time'));
+                                    }}
                                 >
                                     <FiPhoneCall /> اتصال: {advData.phone}
                                 </a>
@@ -583,6 +760,16 @@ function ProductDetails() {
                         </div>
                     </div>
                 </section>
+            )}
+
+            {/* Rating Modal */}
+            {showRatingModal && advData && (
+                <RatingModal
+                    isOpen={showRatingModal}
+                    onClose={() => setShowRatingModal(false)}
+                    advertiserId={advData.user?.id}
+                    advId={advData.id}
+                />
             )}
         </>
     );

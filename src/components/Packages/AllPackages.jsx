@@ -73,24 +73,37 @@ function AllPackages() {
     // Check if returning from online payment
     const pendingSubscription = localStorage.getItem('pending_subscription_payment')
     const urlParams = new URLSearchParams(window.location.search)
-    const isReturningFromPayment = urlParams.get('payment') === 'success' || urlParams.get('status') === 'success' || pendingSubscription
+    const paymentStatus = urlParams.get('payment') || urlParams.get('status')
     
-    if (isReturningFromPayment) {
-      console.log('🔄 Detected return from online payment...')
+    // Only show success if explicitly successful
+    if (paymentStatus === 'success' && pendingSubscription) {
+      console.log('✅ Payment successful, activating subscription...')
       
-      // Wait a moment then check subscription and show success
       setTimeout(() => {
-        const savedData = pendingSubscription ? JSON.parse(pendingSubscription) : null
+        const savedData = JSON.parse(pendingSubscription)
         if (savedData?.packageName) {
           alert(`✅ تم الاشتراك في باقة "${savedData.packageName}" بنجاح!\n\nيمكنك الآن نشر ${savedData.advNumber} إعلان لمدة ${savedData.period} يوم`)
         } else {
           alert('✅ تمت عملية الدفع بنجاح!\n\nتم تفعيل اشتراكك.')
         }
         localStorage.removeItem('pending_subscription_payment')
-        console.log('✅ Subscription activated after payment')
       }, 1000)
-      
-      // Clean URL
+    } 
+    // Handle failed/cancelled payments
+    else if ((paymentStatus === 'failed' || paymentStatus === 'cancel' || paymentStatus === 'error') && pendingSubscription) {
+      console.log('❌ Payment failed or cancelled')
+      alert('⚠️ لم تكتمل عملية الدفع.\n\nيمكنك المحاولة مرة أخرى.')
+      localStorage.removeItem('pending_subscription_payment')
+    }
+    // Handle return without payment status (user just went back)
+    else if (pendingSubscription && !paymentStatus) {
+      console.log('⚠️ Returned without payment confirmation')
+      // Don't show alert, just clean up
+      localStorage.removeItem('pending_subscription_payment')
+    }
+    
+    // Clean URL parameters
+    if (paymentStatus) {
       window.history.replaceState({}, '', window.location.pathname)
     }
   }, [fetchPackages, fetchWalletBalance])
@@ -140,24 +153,11 @@ function AllPackages() {
       console.log('💰 Wallet balance:', walletBalance, 'SAR')
       console.log('💵 Package price:', packagePrice, 'SAR')
       
-      // Check if wallet has enough balance
-      if (walletBalance < packagePrice) {
-        // Not enough balance - redirect to wallet
-        const confirm = window.confirm(
-          `رصيدك الحالي: ${walletBalance} ريال\n` +
-          `سعر الباقة: ${packagePrice} ريال\n\n` +
-          `رصيدك غير كافٍ. هل تريد الذهاب للمحفظة لشحنها؟`
-        )
-        
-        if (confirm) {
-          navigate('/wallet')
-        }
-      } else {
-        // Has enough balance - show payment modal
-        setSelectedPackage(pkg)
-        setShowPaymentModal(true)
-        setCheckingWallet(false)
-      }
+      // Always show payment modal - let user choose payment method
+      // If wallet balance is low, they can still pay with visa/online
+      setSelectedPackage(pkg)
+      setShowPaymentModal(true)
+      setCheckingWallet(false)
     } catch (error) {
       console.error('Error during subscription:', error)
       alert('حدث خطأ. يرجى المحاولة مرة أخرى')
@@ -173,6 +173,26 @@ function AllPackages() {
     
     try {
       console.log(`✅ User selected ${method} payment, proceeding...`)
+      
+      // If wallet payment, check balance first
+      if (method === 'wallet') {
+        const packagePrice = parseFloat(selectedPackage.price) || 0
+        console.log('💰 Checking wallet balance:', walletBalance, 'vs package price:', packagePrice)
+        
+        if (walletBalance < packagePrice) {
+          setCheckingWallet(false)
+          const confirm = window.confirm(
+            `رصيدك الحالي: ${walletBalance} ريال\n` +
+            `سعر الباقة: ${packagePrice} ريال\n\n` +
+            `رصيدك غير كافٍ. هل تريد الذهاب للمحفظة لشحنها؟`
+          )
+          
+          if (confirm) {
+            navigate('/wallet')
+          }
+          return
+        }
+      }
       
       // Get user ID
       let userId = null

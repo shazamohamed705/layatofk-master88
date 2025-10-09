@@ -26,6 +26,9 @@ function Advertising() {
     const [totalPages, setTotalPages] = useState(1);
     const [totalAds, setTotalAds] = useState(0);
     
+    // Filter states
+    const [selectedCategoryFilter, setSelectedCategoryFilter] = useState(null);
+    
     // Brands and Models filters
     const [brands, setBrands] = useState([]);
     const [brandsLoading, setBrandsLoading] = useState(false);
@@ -289,19 +292,57 @@ function Advertising() {
                 setAdsLoading(true);
                 setAdsError(null);
                 
-                const response = await getJson(`/api/ads?page=${currentPage}`);
+                // Build dynamic URL with filters
+                const params = new URLSearchParams();
                 
-                if (response?.status && response?.ads?.data && Array.isArray(response.ads.data)) {
-                    // Filter only commercial ads (show_on_commercial = 1)
-                    const commercialOnly = response.ads.data.filter(ad => ad.show_on_commercial === 1);
-                    console.log('✅ Loaded', commercialOnly.length, 'commercial ads from page', currentPage);
+                if (selectedCategoryFilter) {
+                    // When filter is active, get total count first
+                    params.append('cat_id', selectedCategoryFilter);
                     
-                    setCommercialAds(commercialOnly);
-                    setTotalPages(response.ads.last_page || 1);
-                    setTotalAds(response.ads.total || 0);
+                    // First request to get total count
+                    const initialUrl = `/api/ads?${params.toString()}`;
+                    console.log('🔍 Getting total count from:', initialUrl);
+                    const initialResponse = await getJson(initialUrl);
+                    
+                    if (initialResponse?.status && initialResponse?.ads?.total) {
+                        const totalCount = initialResponse.ads.total;
+                        console.log('📊 Total ads in category:', totalCount);
+                        
+                        // Second request with per_page = total to get all ads
+                        params.append('per_page', totalCount.toString());
+                        const fullUrl = `/api/ads?${params.toString()}`;
+                        console.log('🔍 Fetching all ads from:', fullUrl);
+                        const fullResponse = await getJson(fullUrl);
+                        
+                        if (fullResponse?.status && fullResponse?.ads?.data && Array.isArray(fullResponse.ads.data)) {
+                            console.log('✅ Loaded', fullResponse.ads.data.length, 'ads');
+                            setCommercialAds(fullResponse.ads.data);
+                            setTotalPages(fullResponse.ads.last_page || 1);
+                            setTotalAds(fullResponse.ads.total || 0);
+                        } else {
+                            setCommercialAds([]);
+                        }
+                    } else {
+                        console.log('⚠️ No ads found in category');
+                        setCommercialAds([]);
+                    }
                 } else {
-                    console.log('⚠️ No commercial ads found');
-                    setCommercialAds([]);
+                    // When no filter, use pagination
+                    params.append('page', currentPage);
+                    const apiUrl = `/api/ads?${params.toString()}`;
+                    
+                    console.log('🔍 Fetching ads from:', apiUrl);
+                    const response = await getJson(apiUrl);
+                    
+                    if (response?.status && response?.ads?.data && Array.isArray(response.ads.data)) {
+                        console.log('✅ Loaded', response.ads.data.length, 'ads');
+                        setCommercialAds(response.ads.data);
+                        setTotalPages(response.ads.last_page || 1);
+                        setTotalAds(response.ads.total || 0);
+                    } else {
+                        console.log('⚠️ No ads found');
+                        setCommercialAds([]);
+                    }
                 }
             } catch (error) {
                 console.error('❌ Error fetching commercial ads:', error);
@@ -313,9 +354,9 @@ function Advertising() {
 
         fetchCommercialAds();
         
-        // Scroll to top when page changes
+        // Scroll to top when page or filter changes
         window.scrollTo({ top: 0, behavior: 'smooth' });
-    }, [currentPage]);
+    }, [currentPage, selectedCategoryFilter]);
 
   return (
     <>
@@ -324,10 +365,28 @@ function Advertising() {
       <header className="bg-white shadow-sm py-6">
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-center mb-4">
-            <h1 className="text-3xl font-bold text-primary">إعلانات تجارية</h1>
-            <Link to="/" className="flex items-center gap-1 text-sm border border-primary text-primary px-3 py-1 rounded hover:bg-primary hover:text-white transition">
-              <IoIosArrowBack />
-              الرئيسية
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-bold text-primary">إعلانات تجارية</h1>
+              {selectedCategoryFilter && (
+                <button
+                  onClick={() => {
+                    setSelectedCategoryFilter(null);
+                    setCurrentPage(1);
+                  }}
+                  className="text-xs bg-red-500 text-white px-3 py-1.5 rounded-full hover:bg-red-600 transition flex items-center gap-1"
+                >
+                  إزالة التصفية ✕
+                </button>
+              )}
+            </div>
+            <Link 
+              to="/new-add-cat" 
+              className="flex items-center gap-2 bg-primary text-white px-6 py-2.5 rounded-lg hover:bg-primary/90 transition-all font-semibold shadow-md hover:shadow-lg"
+            >
+              أنشر إعلانك الآن
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
             </Link>
           </div>
 
@@ -360,14 +419,24 @@ function Advertising() {
                       closeTimerRef.current = t
                     }}
                   >
-                    <div className="text-gray-700 hover:text-primary px-2 py-2 md:px-3 md:py-3 rounded-full border border-gray-200 bg-white/80 backdrop-blur-sm hover:border-primary/40 flex items-center gap-1 transition-colors duration-200 whitespace-nowrap text-[13px] md:text-sm">
-                      <Link 
-                        to={`/products/${cat.id}`}
+                    <div className={`px-2 py-2 md:px-3 md:py-3 rounded-full border bg-white/80 backdrop-blur-sm flex items-center gap-1 transition-colors duration-200 whitespace-nowrap text-[13px] md:text-sm ${
+                      selectedCategoryFilter === cat.id 
+                        ? 'border-primary bg-primary/10 text-primary' 
+                        : 'text-gray-700 hover:text-primary border-gray-200 hover:border-primary/40'
+                    }`}>
+                      <button
+                        type="button"
                         className="whitespace-nowrap hover:underline"
-                        onClick={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedCategoryFilter(cat.id);
+                          setCurrentPage(1);
+                          setHoveredCategory(null);
+                          setDropdownPos(null);
+                        }}
                       >
                         {cat.name}
-                      </Link>
+                      </button>
                       
                       <button
                         type="button"
@@ -465,25 +534,37 @@ function Advertising() {
                     <div className="px-4 py-2 text-sm text-gray-500">جاري التحميل...</div>
                   ) : subMap[hoveredCategory] && subMap[hoveredCategory].length > 0 ? (
                     subMap[hoveredCategory].map((sub) => (
-                      <Link
+                      <button
                         key={sub.id}
-                        to={`/products/${sub.id}`}
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-primary hover:text-white transition-colors duration-150 text-right"
+                        type="button"
+                        onClick={() => {
+                          setSelectedCategoryFilter(sub.id);
+                          setCurrentPage(1);
+                          setHoveredCategory(null);
+                          setDropdownPos(null);
+                        }}
+                        className="block w-full px-4 py-2 text-sm text-gray-700 hover:bg-primary hover:text-white transition-colors duration-150 text-right"
                       >
                         {sub.name}
-                      </Link>
+                      </button>
                     ))
                   ) : (
                     <>
                       {subError && (
                         <div className="px-4 py-2 text-xs text-red-600">{subError}</div>
                       )}
-                      <Link
-                        to={`/products/${hoveredCategory}`}
-                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-primary hover:text-white transition-colors duration-150"
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedCategoryFilter(hoveredCategory);
+                          setCurrentPage(1);
+                          setHoveredCategory(null);
+                          setDropdownPos(null);
+                        }}
+                        className="block w-full px-4 py-2 text-sm text-gray-700 hover:bg-primary hover:text-white transition-colors duration-150"
                       >
                         عرض جميع المنتجات
-                      </Link>
+                      </button>
                     </>
                   )}
                 </div>
@@ -526,77 +607,81 @@ function Advertising() {
               const phoneNumber = ad.phone;
               
               return (
-                <div key={ad.id} className="rounded-2xl overflow-hidden bg-white border border-gray-200 shadow-md hover:shadow-xl transition-all duration-300 relative">
-                  {/* Image - Full Card Size */}
-                  <div className="relative aspect-[3/4] bg-gray-100">
-                    {adImage ? (
-                      <img
-                        src={adImage}
-                        alt={ad.name}
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          e.target.style.display = 'none';
-                          e.target.nextElementSibling.style.display = 'flex';
-                        }}
-                      />
-                    ) : null}
-                    {/* Placeholder for missing or failed images */}
-                    <div 
-                      className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200"
-                      style={{ display: adImage ? 'none' : 'flex' }}
-                    >
-                      <svg className="w-24 h-24 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                    </div>
-                    
-                    {/* Price Badge - Top Right */}
-                    {ad.price && (
-                      <div className="absolute top-4 right-4 bg-primary text-white px-4 py-2 rounded-full font-bold shadow-lg">
-                        {ad.price.toLocaleString('en-US')} KD
+                <Link to={`/product-details/${ad.id}`} key={ad.id}>
+                  <div className="rounded-2xl overflow-hidden bg-white border border-gray-200 shadow-md hover:shadow-xl transition-all duration-300 relative">
+                    {/* Image - Full Card Size */}
+                    <div className="relative aspect-[3/4] bg-gray-100">
+                      {adImage ? (
+                        <img
+                          src={adImage}
+                          alt={ad.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.style.display = 'none';
+                            e.target.nextElementSibling.style.display = 'flex';
+                          }}
+                        />
+                      ) : null}
+                      {/* Placeholder for missing or failed images */}
+                      <div 
+                        className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200"
+                        style={{ display: adImage ? 'none' : 'flex' }}
+                      >
+                        <svg className="w-24 h-24 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
                       </div>
-                    )}
-                    
-                    {/* Text Overlay */}
-                    <div className="absolute bottom-16 left-0 right-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-6 pt-12">
-                      {/* Title */}
-                      <h3 className="text-xl font-bold mb-2 line-clamp-2 text-white drop-shadow-lg">{ad.name}</h3>
                       
-                      {/* Description */}
-                      <p className="text-sm line-clamp-2 text-white/95 drop-shadow-md">{ad.description}</p>
-                    </div>
+                      {/* Price Badge - Top Right */}
+                      {ad.price && (
+                        <div className="absolute top-4 right-4 bg-primary text-white px-4 py-2 rounded-full font-bold shadow-lg">
+                          {ad.price.toLocaleString('en-US')} KD
+                        </div>
+                      )}
+                      
+                      {/* Text Overlay */}
+                      <div className="absolute bottom-16 left-0 right-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-6 pt-12">
+                        {/* Title */}
+                        <h3 className="text-xl font-bold mb-2 line-clamp-2 text-white drop-shadow-lg">{ad.name}</h3>
+                        
+                        {/* Description */}
+                        <p className="text-sm line-clamp-2 text-white/95 drop-shadow-md">{ad.description}</p>
+                      </div>
 
-                    {/* Action Buttons - Absolute at Bottom */}
-                    <div className="absolute bottom-0 left-0 right-0 flex gap-3 p-4 bg-white/95 backdrop-blur-sm">
-                      {whatsappNumber && (
-                        <a 
-                          href={`https://wa.me/${whatsappNumber}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 px-4 rounded-full flex items-center justify-center gap-2 transition-colors shadow-sm"
-                        >
-                          <FaWhatsapp size={22} />
-                        </a>
-                      )}
-                      {phoneNumber && (
-                        <a 
-                          href={`tel:${phoneNumber}`}
-                          className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-3 px-4 rounded-full flex items-center justify-center gap-2 transition-colors shadow-sm"
-                        >
-                          <BiPhone size={22} />
-                        </a>
-                      )}
+                      {/* Action Buttons - Absolute at Bottom */}
+                      <div className="absolute bottom-0 left-0 right-0 flex gap-3 p-4 bg-white/95 backdrop-blur-sm">
+                        {whatsappNumber && (
+                          <a 
+                            href={`https://wa.me/${whatsappNumber}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 px-4 rounded-full flex items-center justify-center gap-2 transition-colors shadow-sm"
+                          >
+                            <FaWhatsapp size={22} />
+                          </a>
+                        )}
+                        {phoneNumber && (
+                          <a 
+                            href={`tel:${phoneNumber}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-3 px-4 rounded-full flex items-center justify-center gap-2 transition-colors shadow-sm"
+                          >
+                            <BiPhone size={22} />
+                          </a>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
+                </Link>
               );
             })}
           </div>
         )}
 
-        {/* Pagination */}
-        {!adsLoading && !adsError && commercialAds.length > 0 && totalPages > 1 && (
+        {/* Pagination - Only show when no filter is active */}
+        {!adsLoading && !adsError && commercialAds.length > 0 && totalPages > 1 && !selectedCategoryFilter && (
           <div className="flex justify-center items-center gap-2 mt-12 pb-8">
             {/* Previous Button */}
             <button
@@ -660,9 +745,13 @@ function Advertising() {
         )}
 
         {/* Pagination Info */}
-        {!adsLoading && !adsError && totalAds > 0 && (
+        {!adsLoading && !adsError && commercialAds.length > 0 && (
           <div className="text-center text-sm text-gray-500 pb-4">
-            عرض {commercialAds.length} من أصل {totalAds} إعلان تجاري
+            {selectedCategoryFilter ? (
+              <span>تم العثور على {commercialAds.length} إعلان تجاري في هذه الفئة</span>
+            ) : (
+              <span>عرض {commercialAds.length} من أصل {totalAds} إعلان تجاري</span>
+            )}
           </div>
         )}
       </main>

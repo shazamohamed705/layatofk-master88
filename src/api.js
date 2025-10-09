@@ -74,6 +74,10 @@ export async function getJson(path, options = {}) {
         console.warn('[API] Error accessing token:', e.message)
       }
     }
+  } else {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[API] 🔓 Skipping token for:', path)
+    }
   }
 
   try {

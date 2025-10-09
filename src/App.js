@@ -16,6 +16,10 @@ const About = lazy(() => import("./components/About/About"));
 const Contact = lazy(() => import("./components/Contact/Contact"));
 const ProductDetails = lazy(() => import("./components/ProductDetails/ProductDetails"));
 const Advertising = lazy(() => import("./components/Advertising/Advertising"));
+const NewAddCat = lazy(() => import("./components/NewAdd/NewAddCat"));
+const NewAddShare = lazy(() => import("./components/NewAdd/NewAddShare"));
+const NewAddCer = lazy(() => import("./components/NewAdd/NewAddCer"));
+const BusinessPackages = lazy(() => import("./components/Packages/BusinessPackages"));
 const ShareAdds = lazy(() => import("./components/Share/ShareAdds"));
 const CarPages = lazy(() => import("./components/Share/CarPages"));
 const ModelsPage = lazy(() => import("./components/Share/ModelsPage"));
@@ -28,6 +32,9 @@ const Register = lazy(() => import("./components/Register/Register"));
 const Products = lazy(() => import("./components/Products/Products"));
 const Categories = lazy(() => import("./components/Categories/Categories"));
 const ProfilePages = lazy(() => import("./components/ProfilePages/ProfilePages"));
+const ChangePassword = lazy(() => import("./components/ChangePassword/ChangePassword"));
+const MySubscriptions = lazy(() => import("./components/MySubscriptions/MySubscriptions"));
+const Bills = lazy(() => import("./components/Bills/Bills"));
 const Verification = lazy(() => import("./components/Verification/Verification"));
 const Chat = lazy(() => import("./components/Chat/Chat"));
 const ChatRoom = lazy(() => import("./components/Chat/ChatRoom"));
@@ -46,6 +53,10 @@ const router = createBrowserRouter([
       { path: "product-details/:id", element: <ProductDetails /> },
       { path: "product-details", element: <ProductDetails /> },
       { path: "advertising", element: <Advertising /> },
+      { path: "new-add-cat", element: <NewAddCat /> },
+      { path: "new-add-share", element: <NewAddShare /> },
+      { path: "new-add-cer", element: <NewAddCer /> },
+      { path: "business-packages", element: <BusinessPackages /> },
       { path: "share-ad", element: <ShareAdds /> },
       { path: "share-car", element: <CarPages /> },
       { path: "share-car-details", element: <ModelsPage /> },
@@ -59,6 +70,9 @@ const router = createBrowserRouter([
       { path: "products/:subCatId", element: <Products /> },
       { path: "categories", element: <Categories /> },
       { path: "profile", element: <ProfilePages /> },
+      { path: "change-password", element: <ChangePassword /> },
+      { path: "my-subscriptions", element: <MySubscriptions /> },
+      { path: "bills", element: <Bills /> },
       { path: "verify-account", element: <Verification /> },
       { path: "chat", element: <Chat /> },
       { path: "chat/:chatId", element: <ChatRoom /> },

@@ -7,6 +7,21 @@ function ModelsPage() {
   const navigate = useNavigate()
   const location = useLocation()
   
+  // Helper function to get user-specific localStorage key
+  const getUserStorageKey = React.useCallback((baseKey) => {
+    try {
+      const userData = localStorage.getItem('user')
+      if (userData) {
+        const parsed = JSON.parse(userData)
+        const userId = parsed.id
+        return `${baseKey}_user_${userId}`
+      }
+    } catch (e) {
+      console.error('Error getting user ID:', e)
+    }
+    return baseKey // Fallback to base key if no user
+  }, [])
+  
   // Get saved data from localStorage
   const [basicData, setBasicData] = useState(null)
   const [brands, setBrands] = useState([])
@@ -22,9 +37,10 @@ function ModelsPage() {
     model_id: ''
   })
 
-  // Load basic data from localStorage
+  // Load basic data from localStorage (user-specific)
   useEffect(() => {
-    const savedData = localStorage.getItem('pending_ad_data')
+    const storageKey = getUserStorageKey('pending_ad_data')
+    const savedData = localStorage.getItem(storageKey)
     if (savedData) {
       const parsed = JSON.parse(savedData)
       setBasicData(parsed)
@@ -43,7 +59,7 @@ function ModelsPage() {
       navigate('/share-ad')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [getUserStorageKey])
 
 
   // Fetch brands
@@ -173,13 +189,18 @@ function ModelsPage() {
       const completeData = {
         ...basicData,
         dynamicFields: dynamicFields,
+        categoryComponents: categoryComponents, // Save category components for value mapping
+        brands: brands, // Save brands data for value mapping
+        models: models, // Save models data for value mapping
+        carTypes: carTypes, // Save car types data for value mapping
         timestamp: new Date().toISOString()
       }
       
-      // Save to localStorage for next step
-      localStorage.setItem('pending_ad_complete', JSON.stringify(completeData))
+      // Save to localStorage for next step (user-specific)
+      const completeDataKey = getUserStorageKey('pending_ad_complete')
+      localStorage.setItem(completeDataKey, JSON.stringify(completeData))
       
-      console.log('✅ Data saved for next step:', completeData)
+      console.log('✅ Data saved for next step (user-specific):', completeData)
       
       // Navigate to final step
       navigate('/share-car-final', { 

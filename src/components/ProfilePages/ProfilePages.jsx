@@ -3,9 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { IoIosArrowForward } from 'react-icons/io'
 import { BsPatchCheckFill } from 'react-icons/bs'
 import { FiUser, FiMail, FiPhone, FiSettings, FiLogOut, FiPackage, FiShoppingBag } from 'react-icons/fi'
-import { MdVerifiedUser, MdLanguage, MdDarkMode, MdNotifications, MdPrivacyTip } from 'react-icons/md'
+import { MdVerifiedUser, MdLanguage } from 'react-icons/md'
 import { postForm } from '../../api'
-import { useDarkMode } from '../../contexts/DarkModeContext'
 import { IoKeyOutline } from "react-icons/io5";
 import { LuFileSpreadsheet } from "react-icons/lu";
 
@@ -13,8 +12,6 @@ function ProfilePages() {
   const navigate = useNavigate()
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
-  const { darkMode, toggleDarkMode } = useDarkMode()
-  const [notifications, setNotifications] = useState(true)
 
   // Helper: normalize verified flag from API
   const isUserVerified = (u) => {
@@ -79,8 +76,7 @@ function ProfilePages() {
     {
       icon: <IoKeyOutline  className="text-xl" />,
       label:  'الامان وكلمه المرور',
-      badge: user?.adv_numbers || 0,
-      onClick: () => navigate('/advertising'),
+      onClick: () => navigate('/change-password'),
       arrow: true
     },
     {
@@ -91,9 +87,8 @@ function ProfilePages() {
     },
     {
       icon: <FiPackage className="text-xl" />,
-      label: 'اشتركاتي',
-      badge: user?.adv_numbers || 0,
-      onClick: () => navigate('/my-ads'),
+      label: 'اشتراكاتي',
+      onClick: () => navigate('/my-subscriptions'),
       arrow: true
     },
     {
@@ -105,7 +100,7 @@ function ProfilePages() {
     {
       icon: <LuFileSpreadsheet className="text-xl" />,
       label: 'فواتيري',
-      onClick: () => navigate('/favorites'),
+      onClick: () => navigate('/bills'),
       arrow: true
     },
     {
@@ -113,29 +108,6 @@ function ProfilePages() {
       label: 'اللغة',
       value: 'العربية',
       onClick: () => {},
-      arrow: true
-    },
-    {
-      icon: <MdDarkMode className="text-xl" />,
-      label: 'الوضع المظلم',
-      toggle: true,
-      value: darkMode,
-      onChange: toggleDarkMode,
-      arrow: false
-    },
-    {
-      icon: <MdNotifications className="text-xl" />,
-      label: 'الاشعارات',
-      toggle: true,
-      value: notifications,
-      badge: user?.unread_messages || 0,
-      onChange: () => setNotifications(prev => !prev),
-      arrow: false
-    },
-    {
-      icon: <MdPrivacyTip className="text-xl" />,
-      label: 'السياسة الشائعة',
-      onClick: () => navigate('/privacy'),
       arrow: true
     }
   ]
@@ -149,12 +121,12 @@ function ProfilePages() {
   }
 
   return (
-    <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'} transition-colors duration-300`} dir="rtl">
+    <div className="min-h-screen bg-gray-50" dir="rtl">
       {/* Container with max width for large screens */}
       <div className="max-w-2xl mx-auto">
         
         {/* Profile Header */}
-        <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} px-4 py-6 transition-colors duration-300`}>
+        <div className="bg-white px-4 py-6">
           {/* User Image, Name and Verified Badge */}
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -169,10 +141,10 @@ function ProfilePages() {
                 />
               </div>
               <div className="text-right">
-                <h2 className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+                <h2 className="text-lg font-bold text-gray-800">
                   {user?.name || 'المستخدم'}
                 </h2>
-                <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{user?.email}</p>
+                <p className="text-xs text-gray-500">{user?.email}</p>
               </div>
             </div>
             {isUserVerified(user) && (
@@ -196,16 +168,16 @@ function ProfilePages() {
         </div>
 
         {/* Menu Items */}
-        <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} mt-4 transition-colors duration-300`}>
+        <div className="bg-white mt-4">
           {menuItems.map((item, index) => (
             <div key={index}>
               <button
-                onClick={item.toggle ? undefined : item.onClick}
-                className={`w-full px-4 py-4 flex items-center justify-between ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-50'} transition-colors`}
+                onClick={item.onClick}
+                className="w-full px-4 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
               >
                 <div className="flex items-center gap-3">
-                  <div className={darkMode ? 'text-gray-300' : 'text-gray-700'}>{item.icon}</div>
-                  <span className={`text-sm ${darkMode ? 'text-white' : 'text-gray-800'}`}>{item.label}</span>
+                  <div className="text-gray-700">{item.icon}</div>
+                  <span className="text-sm text-gray-800">{item.label}</span>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -216,32 +188,21 @@ function ProfilePages() {
                     </span>
                   )}
 
-                  {/* Value or Toggle */}
-                  {item.toggle ? (
-                    <label className="relative inline-block w-11 h-6">
-                      <input
-                        type="checkbox"
-                        checked={item.value}
-                        onChange={() => item.onChange()}
-                        className="sr-only peer"
-                      />
-                      <div className={`w-full h-full rounded-full transition-colors ${item.value ? 'bg-blue-500' : darkMode ? 'bg-gray-600' : 'bg-gray-300'}`}></div>
-                      <div className="absolute top-0.5 right-0.5 w-5 h-5 bg-white rounded-full transition-transform peer-checked:translate-x-[-22px]"></div>
-                    </label>
-                  ) : item.value ? (
-                    <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-400'}`}>{item.value}</span>
-                  ) : null}
+                  {/* Value */}
+                  {item.value && (
+                    <span className="text-xs text-gray-400">{item.value}</span>
+                  )}
 
                   {/* Arrow */}
                   {item.arrow && (
-                    <IoIosArrowForward className={`text-sm ${darkMode ? 'text-gray-500' : 'text-gray-400'}`} />
+                    <IoIosArrowForward className="text-sm text-gray-400" />
                   )}
                 </div>
               </button>
               
               {/* Divider */}
               {index < menuItems.length - 1 && (
-                <div className={`border-b ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}></div>
+                <div className="border-b border-gray-100"></div>
               )}
             </div>
           ))}
@@ -251,7 +212,7 @@ function ProfilePages() {
         <div className="px-4 py-6">
           <button
             onClick={handleLogout}
-            className={`w-full ${darkMode ? 'bg-red-600 hover:bg-red-700' : 'bg-red-500 hover:bg-red-600'} text-white font-semibold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors`}
+            className="w-full bg-red-500 hover:bg-red-600 text-white font-semibold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors"
           >
             <FiLogOut className="text-lg" />
             <span>تسجيل الخروج</span>
